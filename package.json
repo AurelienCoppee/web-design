@@ -1,0 +1,32 @@
+{
+  "name": "example-with-tailwindcss",
+  "type": "module",
+  "scripts": {
+    "dev": "vinxi dev",
+    "build": "vinxi build",
+    "start": "vinxi start",
+    "fetch:inspections": "tsx scripts/fetchInspections.ts"
+  },
+  "dependencies": {
+    "@oslojs/crypto": "^1.0.1",
+    "@oslojs/encoding": "^1.1.0",
+    "@prisma/client": "6.7.0",
+    "@solidjs/meta": "^0.29.4",
+    "@solidjs/router": "^0.15.0",
+    "@solidjs/start": "^1.1.0",
+    "axios": "^1.9.0",
+    "solid-js": "^1.9.5",
+    "vinxi": "^0.5.3",
+    "xml2js": "^0.6.2",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.7",
+    "prisma": "^6.7.0",
+    "tailwindcss": "^4.0.7",
+    "tsx": "^4.19.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
