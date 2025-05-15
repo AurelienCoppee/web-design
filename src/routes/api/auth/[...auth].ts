@@ -1,15 +1,4 @@
-import { SolidAuth, type SolidAuthConfig } from "@auth/solid-start"
-import GitHub from "@auth/solid-start/providers/github"
-import { serverEnv } from "~/env/server"
+import { SolidAuth } from "@auth/solid-start"
+import { authOptions } from "~/server/auth";
 
-export const authOpts: SolidAuthConfig = {
-    providers: [
-        GitHub({
-            clientId: serverEnv.GITHUB_ID,
-            clientSecret: serverEnv.GITHUB_SECRET,
-        }),
-    ],
-    debug: false,
-}
-
-export const { GET, POST } = SolidAuth(authOpts)
+export const { GET, POST } = SolidAuth(authOptions)
