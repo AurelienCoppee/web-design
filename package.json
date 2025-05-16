@@ -11,18 +11,18 @@
     "@auth/core": "^0.39.1",
     "@auth/prisma-adapter": "^2.9.1",
     "@auth/solid-start": "^0.17.1",
-    "@prisma/client": "6.7.0",
+    "@prisma/client": "^6.8.1",
     "@solidjs/meta": "^0.29.4",
-    "@solidjs/router": "^0.15.0",
-    "@solidjs/start": "^1.1.0",
-    "solid-js": "^1.9.5",
-    "vinxi": "^0.5.3",
+    "@solidjs/router": "^0.15.3",
+    "@solidjs/start": "^1.1.4",
+    "solid-js": "^1.9.6",
+    "vinxi": "^0.5.6",
     "zod": "^3.24.4"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.0.7",
-    "prisma": "^6.7.0",
-    "tailwindcss": "^4.0.7",
+    "@tailwindcss/vite": "^4.1.7",
+    "prisma": "^6.8.1",
+    "tailwindcss": "^4.1.7",
     "tsx": "^4.19.4"
   },
   "engines": {
