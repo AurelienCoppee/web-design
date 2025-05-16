@@ -5,5 +5,6 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     ssr: { external: ["@prisma/client"] }
-  }
+  },
+  ssr: true,
 });

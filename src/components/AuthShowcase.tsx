@@ -1,5 +1,3 @@
-"use client";
-
 import { VoidComponent, Show } from "solid-js";
 import { query, createAsync } from "@solidjs/router";
 import { getRequestEvent } from "solid-js/web";
@@ -28,7 +26,7 @@ const AuthShowcase: VoidComponent = () => {
             Welcome {session()!.user.name}
           </span>
           <button
-            onClick={() => signOut({ redirect: true })}
+            onClick={() => signOut()}
             class="rounded-full bg-white/10 px-10 py-3 font-semibold text-white transition hover:bg-white/20"
           >
             Sign out
@@ -36,7 +34,7 @@ const AuthShowcase: VoidComponent = () => {
         </div>
       ) : (
         <button
-          onClick={() => signIn("discord", { redirectTo: "/" })}
+          onClick={() => signIn("github")}
           class="rounded-full bg-white/10 px-10 py-3 font-semibold text-white transition hover:bg-white/20"
         >
           Sign in

@@ -1,25 +1,19 @@
 import { type SolidAuthConfig } from "@auth/solid-start";
-import Google from "@auth/solid-start/providers/google";
 import GitHub from "@auth/solid-start/providers/github";
 import Nodemailer from "@auth/solid-start/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { serverEnv } from "~/env/server";
 import { db } from "~/lib/db"
 
-declare module "@auth/core/types" {
-    export interface Session {
-        user?: DefaultSession["user"];
-    }
-}
-
 export const authOptions: SolidAuthConfig = {
     adapter: PrismaAdapter(db),
+    basePath: "/api/auth",
+    trustHost: true,
     providers: [
-        Google,
-        // GitHub({
-        //     clientId: serverEnv.GITHUB_ID!,
-        //     clientSecret: serverEnv.GITHUB_SECRET!,
-        // }),
+        GitHub({
+            clientId: serverEnv.GITHUB_ID!,
+            clientSecret: serverEnv.GITHUB_SECRET!,
+        }),
         // Nodemailer({
         //     id: "nodemailer",
         //     server: {
@@ -33,6 +27,5 @@ export const authOptions: SolidAuthConfig = {
         //     from: serverEnv.EMAIL_FROM!,
         // }),
     ],
-    debug: false,
-    basePath: import.meta.env.VITE_AUTH_PATH,
+    debug: true,
 };
