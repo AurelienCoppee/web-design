@@ -1,5 +1,6 @@
 import { type SolidAuthConfig } from "@auth/solid-start";
 import GitHub from "@auth/solid-start/providers/github";
+import Google from "@auth/solid-start/providers/google";
 import Nodemailer from "@auth/solid-start/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { serverEnv } from "~/env/server";
@@ -13,6 +14,10 @@ export const authOptions: SolidAuthConfig = {
         GitHub({
             clientId: serverEnv.GITHUB_ID!,
             clientSecret: serverEnv.GITHUB_SECRET!,
+        }),
+        Google({
+          clientId: serverEnv.GOOGLE_CLIENT_ID!,
+          clientSecret: serverEnv.GOOGLE_CLIENT_SECRET!,
         }),
         // Nodemailer({
         //     id: "nodemailer",

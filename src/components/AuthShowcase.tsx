@@ -34,7 +34,7 @@ const AuthShowcase: VoidComponent = () => {
         </div>
       ) : (
         <button
-          onClick={() => signIn("github")}
+          onClick={() => signIn("google")}
           class="rounded-full bg-white/10 px-10 py-3 font-semibold text-white transition hover:bg-white/20"
         >
           Sign in

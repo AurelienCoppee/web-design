@@ -6,6 +6,8 @@ export const serverScheme = z.object({
         .default("development"),
     GITHUB_ID: z.string(),
     GITHUB_SECRET: z.string(),
+    GOOGLE_CLIENT_ID: z.string(),
+    GOOGLE_CLIENT_SECRET: z.string(),
     AUTH_SECRET: z.string(),
     NEXTAUTH_URL: z.string().optional(),
 })
