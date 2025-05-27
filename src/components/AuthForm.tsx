@@ -13,11 +13,13 @@ const AuthForm: VoidComponent = () => {
   const [isLoading, setIsLoading] = createSignal(false);
 
   const navigate = useNavigate();
+  const [infoMessage, setInfoMessage] = createSignal("");
 
   const handleInitialSubmit = async (e: Event) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage("");
+    setInfoMessage("");
     try {
       const response = await fetch("/api/auth/start-auth-flow", {
         method: "POST",
@@ -27,22 +29,27 @@ const AuthForm: VoidComponent = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        setErrorMessage(data.error || "Une erreur s'est produite.");
+        setErrorMessage(data.error || `Erreur ${response.status}`);
         setIsLoading(false);
         return;
       }
 
       if (data.status === "SETUP_2FA_REQUIRED") {
+        if (data.message) setInfoMessage(data.message);
         setOtpauthUrl(data.otpauthUrl);
         setEmail(data.email);
         setStep("SETUP_2FA");
       } else if (data.status === "2FA_REQUIRED") {
         setEmail(data.email);
         setStep("ENTER_2FA");
-      } else {
+      } else if (data.error) {
+        setErrorMessage(data.error);
+      }
+      else {
         setErrorMessage("Réponse inattendue du serveur.");
       }
     } catch (error) {
+      console.error("Catch block error:", error);
       setErrorMessage("Erreur de connexion au serveur.");
     }
     setIsLoading(false);
