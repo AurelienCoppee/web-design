@@ -2,7 +2,7 @@ import SiteTitle from "~/components/SiteTitle";
 import { Meta } from "@solidjs/meta";
 import { A } from "@solidjs/router";
 import { type VoidComponent } from "solid-js";
-import AuthShowcase from "~/components/AuthShowcase";
+import AuthForm from "~/components/AuthForm";
 
 const Home: VoidComponent = () => {
   return (
@@ -37,7 +37,7 @@ const Home: VoidComponent = () => {
               </div>
             </A>
           </div>
-          <AuthShowcase />
+          <AuthForm />
         </div>
       </main>
     </>

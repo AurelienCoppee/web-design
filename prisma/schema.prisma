@@ -48,6 +48,9 @@ model User {
   name          String?
   email         String?   @unique
   emailVerified DateTime? @map("email_verified")
+  hashedPassword  String?
+  twoFactorSecret   String?
+  twoFactorEnabled  Boolean   @default(false)
   image         String?
   role       Role     @default(USER)
   events     Event[]  @relation("UserEvents")
