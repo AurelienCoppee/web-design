@@ -9,14 +9,14 @@ const Home: VoidComponent = () => {
     <>
       <SiteTitle>Home</SiteTitle>
       <Meta name="description" content="This is my content tag." />
-      <main class="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#026d56] to-[#152a2c]">
+      <main class="flex min-h-screen flex-col items-center justify-center bg-background">
         <div class="container flex flex-col items-center justify-center gap-12 px-4 py-16 ">
-          <h1 class="text-5xl font-extrabold tracking-tight text-white sm:text-[5rem]">
+          <h1 class="text-5xl font-extrabold tracking-tight text-on-background sm:text-[5rem]">
             Create <span class="text-[hsl(88,_77%,_78%)]">JD</span> App
           </h1>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-8">
             <A
-              class="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 text-white hover:bg-white/20"
+              class="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 text-on-background hover:bg-white/20"
               href="https://start.solidjs.com"
               target="_blank"
             >
@@ -26,7 +26,7 @@ const Home: VoidComponent = () => {
               </div>
             </A>
             <A
-              class="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 text-white hover:bg-white/20"
+              class="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 text-on-background hover:bg-white/20"
               href="https://github.com/orjdev/create-jd-app"
               target="_blank"
             >

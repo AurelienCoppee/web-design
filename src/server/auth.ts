@@ -42,18 +42,7 @@ export const authOptions: SolidAuthConfig = {
             clientSecret: serverEnv.GOOGLE_CLIENT_SECRET!,
         }),
         CredentialsProvider({
-            name: "Credentials",
-            credentials: {
-                email: { label: "Email", type: "email" },
-                password: { label: "Password", type: "password" },
-                otp: { label: "One-Time Password", type: "text" },
-            },
-            async authorize(credentials) {
-                if (!credentials?.email || !credentials.password) {
-                    console.error("Authorize: Email ou mot de passe manquant");
-                    return null;
-                }
-
+            authorize: async (credentials) => {
                 const email = credentials.email as string;
                 const password = credentials.password as string;
                 const otp = credentials.otp as string | undefined;
@@ -62,37 +51,24 @@ export const authOptions: SolidAuthConfig = {
                     where: { email: email },
                 });
 
-                if (!user || !user.hashedPassword) {
-                    console.error("Authorize: Utilisateur non trouvé ou pas de mot de passe haché");
-                    return null;
+                if (!user) {
+                    throw new Error("Authorize: Utilisateur non trouvé")
                 }
 
-                const isValidPassword = await bcrypt.compare(password, user.hashedPassword);
+                const isValidPassword = bcrypt.compare(password, user.hashedPassword);
                 if (!isValidPassword) {
-                    console.error("Authorize: Mot de passe invalide");
-                    return null;
+                    throw new Error("Authorize: Mot de passe invalide");
                 }
 
-                if (!user.twoFactorEnabled || !user.twoFactorSecret) {
-                    console.error("Authorize: 2FA non activée ou secret manquant pour un utilisateur existant.");
-                    return null;
+                if (user.role !== "USER") {
+                    const isValidOTP = authenticator.verify({ token: otp, secret: user.twoFactorSecret });
+                    if (!isValidOTP) {
+                        throw new Error("Authorize: Code OTP invalide");
+                    }
                 }
 
-                if (!otp) {
-                    console.error("Authorize: Code OTP manquant pour la connexion 2FA");
-                    return null;
-                }
-
-                const isValidOTP = authenticator.verify({ token: otp, secret: user.twoFactorSecret });
-                if (!isValidOTP) {
-                    console.error("Authorize: Code OTP invalide");
-                    return null;
-                }
-
-                console.log("Authorize: Connexion réussie pour", user.email);
                 return {
                     id: user.id,
-                    name: user.name,
                     email: user.email,
                     role: user.role,
                     image: user.image,
@@ -117,7 +93,6 @@ export const authOptions: SolidAuthConfig = {
             if (user) {
                 token.id = user.id;
                 token.email = user.email;
-                token.name = user.name;
                 token.role = user.role;
                 const dbUser = await db.user.findUnique({ where: { id: user.id } });
                 token.twoFactorEnabled = !!dbUser?.twoFactorEnabled;
@@ -145,7 +120,6 @@ export const authOptions: SolidAuthConfig = {
 
         async session({ session, token }) {
             if (token.id) session.user.id = token.id as string;
-            if (token.name) session.user.name = token.name;
             if (token.email) session.user.email = token.email;
             if (token.role) session.user.role = token.role as string;
             session.user.twoFactorEnabled = !!token.twoFactorEnabled;

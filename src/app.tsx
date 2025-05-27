@@ -2,7 +2,7 @@ import { Router } from "@solidjs/router";
 import { MetaProvider } from "@solidjs/meta";
 import { FileRoutes } from "@solidjs/start/router";
 import { Suspense } from "solid-js";
-import "./app.css";
+import "./styles/global.css";
 
 export default function App() {
   return (

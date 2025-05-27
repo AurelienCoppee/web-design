@@ -39,8 +39,6 @@ const AuthForm: VoidComponent = () => {
 
   const sessionAsync = createAsync(() => getAuthSessionQuery());
 
-  const navigate = useNavigate();
-
   createEffect(() => {
     const currentSession = sessionAsync();
     if (sessionAsync.loading) {
@@ -132,13 +130,9 @@ const AuthForm: VoidComponent = () => {
         const result = await signIn("credentials", {
           redirect: false,
           email: email(),
-          password: password(),
-          otp: otp(),
         });
         setIsLoading(false);
-        if (result?.ok) {
-          window.location.href = "/";
-        } else {
+        if (!result?.ok) {
           setErrorMessage(result?.error || "Erreur de connexion post-setup 2FA. Veuillez réessayer.");
           setStep("ENTER_2FA");
           setPassword("");
@@ -161,13 +155,9 @@ const AuthForm: VoidComponent = () => {
     const result = await signIn("credentials", {
       redirect: false,
       email: email(),
-      password: password(),
-      otp: otp(),
     });
     setIsLoading(false);
-    if (result?.ok) {
-      window.location.href = "/";
-    } else {
+    if (!result?.ok) {
       if (result?.error === "CredentialsSignin") {
         setErrorMessage("Email, mot de passe ou code 2FA invalide.");
       } else {
@@ -186,7 +176,6 @@ const AuthForm: VoidComponent = () => {
     setErrorMessage("");
     setInfoMessage("");
     setIsLoading(false);
-    window.location.href = "/";
   };
 
   return (
@@ -239,7 +228,7 @@ const AuthForm: VoidComponent = () => {
           </Show>
           <div>
             <label for="otp-setup" class="block text-sm font-medium text-white">Code de Vérification</label>
-            <input type="text" id="otp-setup" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-black" autocomplete="one-time-code" />
+            <input type="text" id="otp-setup" inputmode="numeric" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 text-black" autocomplete="one-time-code" />
           </div>
           <button type="submit" disabled={isLoading()} class="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-400">
             {isLoading() ? "Vérification..." : "Vérifier et Activer 2FA"}

@@ -61,7 +61,7 @@ export async function POST(event: APIEvent) {
         }
 
         if (needs2FASetup && user.twoFactorSecret) {
-            const otpauthUrl = authenticator.keyuri(user.email!, "VotreApplication", user.twoFactorSecret);
+            const otpauthUrl = authenticator.keyuri(user.email!, "Ralvo", user.twoFactorSecret);
             return new Response(
                 JSON.stringify({
                     status: "SETUP_2FA_REQUIRED",
