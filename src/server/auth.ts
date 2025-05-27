@@ -89,7 +89,6 @@ export const authOptions: SolidAuthConfig = {
                     return null;
                 }
 
-                // Connexion réussie (mot de passe + OTP)
                 console.log("Authorize: Connexion réussie pour", user.email);
                 return {
                     id: user.id,
@@ -97,7 +96,7 @@ export const authOptions: SolidAuthConfig = {
                     email: user.email,
                     role: user.role,
                     image: user.image,
-                    twoFactorEnabled: user.twoFactorEnabled // pour le callback jwt
+                    twoFactorEnabled: user.twoFactorEnabled
                 };
             },
         }),
@@ -107,13 +106,10 @@ export const authOptions: SolidAuthConfig = {
     },
     callbacks: {
         async signIn({ user, account, credentials }) {
-            if (account?.provider === "credentials") {
-                const dbUser = await db.user.findUnique({ where: { id: user.id } });
-                if (!dbUser?.twoFactorEnabled) {
-                    console.error("SignIn Callback: Tentative de connexion pour un utilisateur sans 2FA activée.");
-                    return false;
-                }
-            }
+            const dbUser = await db.user.findUnique({ where: { id: user.id } });
+
+            if (!dbUser) return false;
+
             return true;
         },
 
@@ -123,19 +119,24 @@ export const authOptions: SolidAuthConfig = {
                 token.email = user.email;
                 token.name = user.name;
                 token.role = user.role;
-                token.twoFactorEnabled = user.twoFactorEnabled;
+                const dbUser = await db.user.findUnique({ where: { id: user.id } });
+                token.twoFactorEnabled = !!dbUser?.twoFactorEnabled;
 
-                if (account?.provider === "credentials" && user.twoFactorEnabled) {
+                if (account?.provider === "credentials" && token.twoFactorEnabled) {
                     token.isTwoFactorAuthenticated = true;
+                } else if (account?.provider !== "credentials") {
+                    token.isTwoFactorAuthenticated = true;
+                } else {
+                    token.isTwoFactorAuthenticated = false;
                 }
             }
 
             if (trigger === "update" && session?.action === "USER_UPDATED_2FA_STATUS") {
-                const dbUser = await db.user.findUnique({ where: { id: token.id } });
+                const dbUser = await db.user.findUnique({ where: { id: token.id as string } });
                 if (dbUser) {
                     token.twoFactorEnabled = dbUser.twoFactorEnabled;
                     if (!dbUser.twoFactorEnabled) {
-                        token.isTwoFactorAuthenticated = false;
+                        token.isTwoFactorAuthenticated = true;
                     }
                 }
             }
@@ -143,12 +144,12 @@ export const authOptions: SolidAuthConfig = {
         },
 
         async session({ session, token }) {
-            if (token.id) session.user.id = token.id;
+            if (token.id) session.user.id = token.id as string;
             if (token.name) session.user.name = token.name;
             if (token.email) session.user.email = token.email;
-            if (token.role) session.user.role = token.role;
-            if (typeof token.twoFactorEnabled === 'boolean') session.user.twoFactorEnabled = token.twoFactorEnabled;
-            if (typeof token.isTwoFactorAuthenticated === 'boolean') session.user.isTwoFactorAuthenticated = token.isTwoFactorAuthenticated;
+            if (token.role) session.user.role = token.role as string;
+            session.user.twoFactorEnabled = !!token.twoFactorEnabled;
+            session.user.isTwoFactorAuthenticated = !!token.isTwoFactorAuthenticated;
 
             return session;
         },
