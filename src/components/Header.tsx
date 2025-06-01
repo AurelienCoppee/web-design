@@ -23,7 +23,7 @@ const Header: Component = () => {
     return (
         <header class="fixed top-0 left-0 right-0 z-50 text-on-surface">
             <div class="flex items-center justify-between h-16 px-4">
-                <h1 class="text-title-sm font-light tracking-tight">Ralvo</h1>
+                <h1 class="text-2xl font-bold tracking-tight">RALVO</h1>
 
                 <div class="relative">
                     <button
@@ -41,17 +41,17 @@ const Header: Component = () => {
                     {open() && (
                         <div
                             ref={el => (menuRef = el)}
-                            class="absolute right-0 mt-2 w-48 bg-surface shadow-md rounded-lg border border-gray-100 z-50 animate-fade-in"
+                            class="absolute right-0 mt-2 bg-surface-variant shadow-md rounded-lg z-50 animate-fade-in p-4"
                         >
-                            <ul class="py-2 text-sm text-on-surface">
+                            <ul class="text-on-surface-variant">
                                 <li>
-                                    <a href="#" class="block px-4 py-2 hover:bg-surface-variant rounded-md">Connexion</a>
+                                    <a href="#" class="block px-4 py-2 hover:bg-on-surface-variant hover:text-surface-variant rounded-lg">Connexion</a>
                                 </li>
                                 <li>
-                                    <a href="#" class="block px-4 py-2 hover:bg-surface-variant rounded-md">Theme</a>
+                                    <a href="#" class="block px-4 py-2 hover:bg-on-surface-variant hover:text-surface-variant rounded-md">Theme</a>
                                 </li>
                                 <li>
-                                    <a href="#" class="block px-4 py-2 hover:bg-surface-variant rounded-md">Contraste</a>
+                                    <a href="#" class="block px-4 py-2 hover:bg-on-surface-variant hover:text-surface-variant rounded-md">Contraste</a>
                                 </li>
                             </ul>
                         </div>
