@@ -1,14 +1,13 @@
 import { Show, type VoidComponent, createSignal, Setter, Accessor } from "solid-js";
-import type { Event as EventType } from "@prisma/client"; // Assuming Event type from Prisma
+import type { Event as EventType } from "@prisma/client";
 
 interface CreateEventModalProps {
     isOpen: Accessor<boolean>;
     setIsOpen: Setter<boolean>;
-    onEventCreated: (newEvent: EventType) => void;
 }
 
 type EventFormData = Omit<EventType, "id" | "organizerId" | "createdAt" | "updatedAt" | "date"> & {
-    date: string; // Keep date as string for input field
+    date: string;
     time: string;
 };
 
@@ -16,8 +15,8 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
     const [formData, setFormData] = createSignal<Partial<EventFormData>>({
         title: "",
         description: "",
-        date: new Date().toISOString().split('T')[0], // Default to today
-        time: "12:00", // Default time
+        date: new Date().toISOString().split('T')[0],
+        time: "12:00",
         address: "",
         city: "",
         region: "",
@@ -30,8 +29,6 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
     const handleClose = () => {
         if (isLoading()) return;
         setErrorMessage("");
-        // Reset form if needed, or keep data for re-editing
-        // setFormData({ title: "", description: "", date: "", address: "", city: "", region: "", lat: 0, lng: 0 });
         props.setIsOpen(false);
     };
 
@@ -47,16 +44,16 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
             return;
         }
 
-        const dateTimeString = `${currentFormData.date}T${currentFormData.time}:00.000Z`; // Assume UTC for simplicity or adjust as needed
+        const dateTimeString = `${currentFormData.date}T${currentFormData.time}:00.000Z`;
 
 
         const payload = {
             ...currentFormData,
             date: dateTimeString,
-            lat: Number(currentFormData.lat) || 0, // Ensure numbers
+            lat: Number(currentFormData.lat) || 0,
             lng: Number(currentFormData.lng) || 0,
         };
-        delete payload.time; // Remove time as it's combined into date
+        delete payload.time;
 
         try {
             const response = await fetch("/api/events/create", {
@@ -71,7 +68,6 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
                 setErrorMessage(data.error || `Error ${response.status}: ${data.message || "Failed to create event."}`);
                 if (data.details) {
                     console.error("Validation errors:", data.details);
-                    // Potentially format and display data.details
                     const formattedErrors = Object.entries(data.details)
                         .map(([field, fieldError]: [string, any]) => fieldError._errors.length > 0 ? `${field}: ${fieldError._errors.join(', ')}` : null)
                         .filter(Boolean)
@@ -80,7 +76,6 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
                 }
                 return;
             }
-            props.onEventCreated(data as EventType);
             handleClose();
         } catch (err) {
             setIsLoading(false);
@@ -112,44 +107,44 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
                     <form onSubmit={handleSubmit} class="space-y-4">
                         <div>
                             <label for="title" class="block text-sm font-medium text-on-surface-variant">Titre</label>
-                            <input type="text" name="title" id="title" value={formData().title || ""} onInput={handleInput} required class="mt-1 block w-full input-styled" />
+                            <input type="text" name="title" id="title" value={formData().title || ""} onInput={handleInput} required class="mt-1 block w-full" />
                         </div>
                         <div>
                             <label for="description" class="block text-sm font-medium text-on-surface-variant">Description</label>
-                            <textarea name="description" id="description" rows="3" value={formData().description || ""} onInput={handleInput} required class="mt-1 block w-full input-styled"></textarea>
+                            <textarea name="description" id="description" rows="3" value={formData().description || ""} onInput={handleInput} required class="mt-1 block w-full"></textarea>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label for="date" class="block text-sm font-medium text-on-surface-variant">Date</label>
-                                <input type="date" name="date" id="date" value={formData().date || ""} onInput={handleInput} required class="mt-1 block w-full input-styled" />
+                                <input type="date" name="date" id="date" value={formData().date || ""} onInput={handleInput} required class="mt-1 block w-full" />
                             </div>
                             <div>
                                 <label for="time" class="block text-sm font-medium text-on-surface-variant">Heure</label>
-                                <input type="time" name="time" id="time" value={formData().time || ""} onInput={handleInput} required class="mt-1 block w-full input-styled" />
+                                <input type="time" name="time" id="time" value={formData().time || ""} onInput={handleInput} required class="mt-1 block w-full" />
                             </div>
                         </div>
                         <div>
                             <label for="address" class="block text-sm font-medium text-on-surface-variant">Adresse</label>
-                            <input type="text" name="address" id="address" value={formData().address || ""} onInput={handleInput} required class="mt-1 block w-full input-styled" />
+                            <input type="text" name="address" id="address" value={formData().address || ""} onInput={handleInput} required class="mt-1 block w-full" />
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label for="city" class="block text-sm font-medium text-on-surface-variant">Ville</label>
-                                <input type="text" name="city" id="city" value={formData().city || ""} onInput={handleInput} required class="mt-1 block w-full input-styled" />
+                                <input type="text" name="city" id="city" value={formData().city || ""} onInput={handleInput} required class="mt-1 block w-full" />
                             </div>
                             <div>
                                 <label for="region" class="block text-sm font-medium text-on-surface-variant">Région</label>
-                                <input type="text" name="region" id="region" value={formData().region || ""} onInput={handleInput} required class="mt-1 block w-full input-styled" />
+                                <input type="text" name="region" id="region" value={formData().region || ""} onInput={handleInput} required class="mt-1 block w-full" />
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label for="lat" class="block text-sm font-medium text-on-surface-variant">Latitude</label>
-                                <input type="number" step="any" name="lat" id="lat" value={formData().lat || 0} onInput={handleInput} required class="mt-1 block w-full input-styled" />
+                                <input type="number" step="any" name="lat" id="lat" value={formData().lat || 0} onInput={handleInput} required class="mt-1 block w-full" />
                             </div>
                             <div>
                                 <label for="lng" class="block text-sm font-medium text-on-surface-variant">Longitude</label>
-                                <input type="number" step="any" name="lng" id="lng" value={formData().lng || 0} onInput={handleInput} required class="mt-1 block w-full input-styled" />
+                                <input type="number" step="any" name="lng" id="lng" value={formData().lng || 0} onInput={handleInput} required class="mt-1 block w-full" />
                             </div>
                         </div>
 

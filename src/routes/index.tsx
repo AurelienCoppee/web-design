@@ -58,7 +58,7 @@ const Home: VoidComponent = () => {
   });
 
   const handleEventCreated = (newEvent: EventType) => {
-    getEventsQuery.refetch();
+
   };
 
   const openEventDetails = (event: EventWithOrganizer) => {
@@ -147,7 +147,6 @@ const Home: VoidComponent = () => {
       <CreateEventModal
         isOpen={isCreateEventModalOpen}
         setIsOpen={setIsCreateEventModalOpen}
-        onEventCreated={handleEventCreated}
       />
       <EventDetailModal
         isOpen={isEventDetailModalOpen}

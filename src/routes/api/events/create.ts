@@ -1,4 +1,4 @@
-import { APIEvent, eventHandler } from "@solidjs/start/server";
+import { APIEvent } from "@solidjs/start/server";
 import { getSession } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
 import { db } from "~/lib/db";
@@ -15,7 +15,7 @@ const createEventSchema = z.object({
     lng: z.number().min(-180).max(180, "Invalid longitude"),
 });
 
-export const POST = eventHandler(async (event: APIEvent) => {
+export async function POST(event: APIEvent) {
     const session = await getSession(event.request, authOptions);
 
     if (!session?.user?.id || (session.user.role !== "ORGANIZER" && session.user.role !== "ADMIN")) {
@@ -63,4 +63,4 @@ export const POST = eventHandler(async (event: APIEvent) => {
             { status: 500, headers: { "Content-Type": "application/json" } }
         );
     }
-});
+};

@@ -327,11 +327,11 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
           <h2 class="text-2xl font-bold text-center text-on-surface">Connexion / Inscription</h2>
           <div>
             <label for="email-initial" class="block text-sm font-medium text-on-surface-variant">Email</label>
-            <input type="email" id="email-initial" value={email()} onInput={(e) => setEmail(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50" autocomplete="email" />
+            <input type="email" id="email-initial" value={email()} onInput={(e) => setEmail(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="email" />
           </div>
           <div>
             <label for="password-initial" class="block text-sm font-medium text-on-surface-variant">Mot de passe</label>
-            <input type="password" id="password-initial" value={password()} onInput={(e) => setPassword(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50" autocomplete="current-password" />
+            <input type="password" id="password-initial" value={password()} onInput={(e) => setPassword(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="current-password" />
           </div>
           <button type="submit" disabled={isLoading() || isGoogleLoading()} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
             {isLoading() ? "Chargement..." : "Continuer avec Email"}
@@ -391,7 +391,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
           </Show>
           <div>
             <label for="otp-setup" class="block text-sm font-medium text-on-surface-variant">Code de Vérification (6 chiffres)</label>
-            <input type="text" id="otp-setup" inputmode="numeric" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50" autocomplete="one-time-code" />
+            <input type="text" id="otp-setup" inputmode="numeric" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="one-time-code" />
           </div>
           <button type="submit" disabled={isLoading()} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
             {isLoading() ? "Vérification..." : "Vérifier et Activer 2FA"}
@@ -405,7 +405,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
           <p class="text-on-surface-variant">{infoMessage() || "Entrez le code de votre application d'authentification."}</p>
           <div>
             <label for="otp-login" class="block text-sm font-medium text-on-surface-variant">Code 2FA (6 chiffres)</label>
-            <input type="text" id="otp-login" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50" autocomplete="one-time-code" />
+            <input type="text" id="otp-login" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="one-time-code" />
           </div>
           <button type="submit" disabled={isLoading()} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
             {isLoading() ? "Connexion..." : "Se Connecter"}

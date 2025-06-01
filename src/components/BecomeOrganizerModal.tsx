@@ -49,7 +49,7 @@ const BecomeOrganizerForm: VoidComponent<{ onSuccess: () => void }> = (props) =>
                 <textarea
                     id="organizer-details"
                     rows="4"
-                    class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50"
+                    class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary"
                     value={formData().details}
                     onInput={(e) => setFormData({ ...formData(), details: e.currentTarget.value })}
                     required

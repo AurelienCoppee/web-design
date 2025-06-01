@@ -1,7 +1,7 @@
-import { APIEvent, eventHandler } from "@solidjs/start/server";
+import { APIEvent } from "@solidjs/start/server";
 import { db } from "~/lib/db";
 
-export const GET = eventHandler(async (event: APIEvent) => {
+export async function GET(event: APIEvent) {
     try {
         const events = await db.event.findMany({
             where: {
@@ -33,4 +33,4 @@ export const GET = eventHandler(async (event: APIEvent) => {
             headers: { "Content-Type": "application/json" },
         });
     }
-});
+};
