@@ -5,7 +5,20 @@ import { authenticator } from "otplib";
 
 export async function POST(event: APIEvent) {
     try {
-        const { email, password } = await event.request.json();
+        let email, password;
+        const contentType = event.request.headers.get("Content-Type");
+
+        if (contentType?.includes("application/json")) {
+            const jsonData = await event.request.json();
+            email = jsonData.email;
+            password = jsonData.password;
+        } else if (contentType?.includes("application/x-www-form-urlencoded")) {
+            const formData = await event.request.formData();
+            email = formData.get("email") as string;
+            password = formData.get("password") as string;
+        } else {
+            return new Response(JSON.stringify({ error: "Unsupported Content-Type" }), { status: 415 });
+        }
 
         if (!email || !password) {
             return new Response(

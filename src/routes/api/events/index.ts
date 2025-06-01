@@ -24,7 +24,10 @@ export async function GET(event: APIEvent) {
         });
         return new Response(JSON.stringify(events), {
             status: 200,
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "Cache-Control": "public, max-age=300"
+            },
         });
     } catch (error) {
         console.error("Error fetching events:", error);

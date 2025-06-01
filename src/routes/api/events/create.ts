@@ -26,7 +26,19 @@ export async function POST(event: APIEvent) {
     }
 
     try {
-        const body = await event.request.json();
+        let body;
+        const contentType = event.request.headers.get("Content-Type");
+
+        if (contentType?.includes("application/json")) {
+            const jsonData = await event.request.json();
+            body = jsonData.body;
+        } else if (contentType?.includes("application/x-www-form-urlencoded")) {
+            const formData = await event.request.formData();
+            body = formData.get("body") as string;
+        } else {
+            return new Response(JSON.stringify({ error: "Unsupported Content-Type" }), { status: 415 });
+        }
+
         const validation = createEventSchema.safeParse(body);
 
         if (!validation.success) {

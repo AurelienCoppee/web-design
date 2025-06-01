@@ -308,22 +308,13 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
 
   return (
     <div class="container mx-auto p-4 max-w-md">
-      <Show when={sessionAsync.loading && step() !== 'LOGGED_IN'}>
-        <p class="text-on-surface">Chargement...</p>
-      </Show>
-
-      <Show when={step() === "LOGGED_IN" && sessionAsync()?.user}>
-        <div class="space-y-4 text-center">
-          <h2 class="text-2xl font-bold text-on-surface">Bienvenue !</h2>
-          <p class="text-on-surface-variant">Connecté en tant que {sessionAsync()?.user?.email}</p>
-          <button onClick={handleSignOut} disabled={isLoading()} class="w-full rounded-md bg-error px-4 py-2 text-on-error hover:brightness-90 disabled:opacity-50">
-            {isLoading() ? "Déconnexion..." : "Se déconnecter"}
-          </button>
-        </div>
-      </Show>
-
       <Show when={step() === "INITIAL"}>
-        <form onSubmit={handleInitialSubmit} class="space-y-6">
+        <form
+          method="post"
+          action="/api/auth/start-auth-flow"
+          onSubmit={handleInitialSubmit}
+          class="space-y-6"
+        >
           <h2 class="text-2xl font-bold text-center text-on-surface">Connexion / Inscription</h2>
           <div>
             <label for="email-initial" class="block text-sm font-medium text-on-surface-variant">Email</label>

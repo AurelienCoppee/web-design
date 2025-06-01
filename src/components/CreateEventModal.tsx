@@ -4,6 +4,7 @@ import type { Event as EventType } from "@prisma/client";
 interface CreateEventModalProps {
     isOpen: Accessor<boolean>;
     setIsOpen: Setter<boolean>;
+    onEventCreated?: () => void;
 }
 
 type EventFormData = Omit<EventType, "id" | "organizerId" | "createdAt" | "updatedAt" | "date"> & {
@@ -104,7 +105,12 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
                         </svg>
                     </button>
                     <h2 class="text-2xl font-bold text-on-surface mb-6">Créer un Événement</h2>
-                    <form onSubmit={handleSubmit} class="space-y-4">
+                    <form
+                        method="post"
+                        action="/api/events/create"
+                        onSubmit={handleSubmit}
+                        class="space-y-4"
+                    >
                         <div>
                             <label for="title" class="block text-sm font-medium text-on-surface-variant">Titre</label>
                             <input type="text" name="title" id="title" value={formData().title || ""} onInput={handleInput} required class="mt-1 block w-full" />

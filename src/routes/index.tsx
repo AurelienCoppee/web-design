@@ -11,7 +11,6 @@ import type { Event as EventType, User as UserType } from "@prisma/client";
 
 type EventWithOrganizer = EventType & { organizer?: Pick<UserType, 'id' | 'name' | 'email'> };
 
-
 const getSessionQuery = query(async () => {
   "use server";
   const event = getRequestEvent();
@@ -52,13 +51,25 @@ const Home: VoidComponent = () => {
 
   const [eventsList, setEventsList] = createSignal<EventWithOrganizer[]>([]);
   createEffect(() => {
-    if (eventsResource()) {
-      setEventsList(eventsResource() as EventWithOrganizer[]);
+    const res = eventsResource();
+    if (res) {
+      setEventsList(res as EventWithOrganizer[]);
     }
   });
 
-  const handleEventCreated = (newEvent: EventType) => {
-
+  const handleEventCreatedAndRefetch = async () => {
+    try {
+      if (eventsResource && typeof (eventsResource as any).refetch === 'function') {
+        await (eventsResource as any).refetch();
+      } else if (getEventsQuery && typeof (getEventsQuery as any).refetch === 'function') {
+        await (getEventsQuery as any).refetch();
+      } else {
+        const freshEvents = await getEventsQuery();
+        setEventsList(freshEvents as EventWithOrganizer[]);
+      }
+    } catch (error) {
+      console.error("Error refetching events:", error);
+    }
   };
 
   const openEventDetails = (event: EventWithOrganizer) => {
@@ -81,7 +92,7 @@ const Home: VoidComponent = () => {
   const groupedEvents = createMemo(() => {
     const groups: Record<string, EventWithOrganizer[]> = {};
     (eventsList() || []).forEach(event => {
-      const eventDate = new Date(event.date).toDateString(); // Group by day
+      const eventDate = new Date(event.date).toDateString();
       if (!groups[eventDate]) {
         groups[eventDate] = [];
       }
@@ -97,7 +108,7 @@ const Home: VoidComponent = () => {
 
   return (
     <>
-      <Title>Ralvo</Title>;
+      <Title>Ralvo</Title>
       <Meta name="description" content="Browse upcoming events." />
       <main class="min-h-screen bg-background text-on-background pt-20 pb-10 px-4 md:px-8">
         <div class="container mx-auto">
@@ -147,6 +158,7 @@ const Home: VoidComponent = () => {
       <CreateEventModal
         isOpen={isCreateEventModalOpen}
         setIsOpen={setIsCreateEventModalOpen}
+        onEventCreated={handleEventCreatedAndRefetch}
       />
       <EventDetailModal
         isOpen={isEventDetailModalOpen}
