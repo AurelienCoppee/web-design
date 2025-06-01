@@ -7,6 +7,10 @@ import { getRequestEvent } from "solid-js/web";
 import { getSession as getServerSession } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
 
+interface AuthFormProps {
+  onSuccess?: () => void;
+}
+
 const getAuthSessionQuery = query(
   async () => {
     "use server";
@@ -26,7 +30,7 @@ const getAuthSessionQuery = query(
 );
 
 
-const AuthForm: VoidComponent = () => {
+const AuthForm: VoidComponent<AuthFormProps> = (props) => {
   const [email, setEmail] = createSignal("");
   const [password, setPassword] = createSignal("");
   const [otp, setOtp] = createSignal("");
@@ -181,7 +185,7 @@ const AuthForm: VoidComponent = () => {
   return (
     <div class="container mx-auto p-4 max-w-md">
       <Show when={sessionAsync.loading}>
-        <p class="text-white">Chargement de la session...</p>
+        <p class="text-on-surface">Chargement de la session...</p>
       </Show>
 
       <Show when={!sessionAsync.loading && sessionAsync()?.user}>
