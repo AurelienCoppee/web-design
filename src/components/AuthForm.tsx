@@ -41,6 +41,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
   const [qrCodeDataUrl, setQrCodeDataUrl] = createSignal("");
   const [errorMessage, setErrorMessage] = createSignal("");
   const [isLoading, setIsLoading] = createSignal(false);
+  const [isGoogleLoading, setIsGoogleLoading] = createSignal(false);
   const [infoMessage, setInfoMessage] = createSignal("");
 
   const [isInitial2FASetupFlow, setIsInitial2FASetupFlow] = createSignal(false);
@@ -138,12 +139,50 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
         setIsInitial2FASetupFlow(false);
         setStep("ENTER_2FA");
       } else {
-        setErrorMessage(data.error || "Réponse inattendue du serveur.");
+        const result = await signIn("credentials", {
+          redirect: false,
+          email: email(),
+          password: password(),
+        });
+        if (!result?.ok) {
+          setErrorMessage(result?.error || "Erreur de connexion après tentative initiale.");
+          setPassword("");
+        } else {
+          setInfoMessage(data.message || "Connexion réussie !");
+          props.onSuccess?.();
+        }
       }
     } catch (error) {
       setIsLoading(false);
       console.error("Catch block error:", error);
       setErrorMessage("Erreur de connexion au serveur.");
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    setErrorMessage("");
+    setInfoMessage("Redirection vers Google...");
+    try {
+      const result = await signIn("google", { redirect: false });
+
+      if (result?.url) {
+        window.location.href = result.url;
+        return;
+      }
+
+      if (result && !result.ok) {
+        setErrorMessage(result.error || "Erreur lors de la connexion avec Google.");
+        setInfoMessage("");
+      } else if (result?.ok) {
+        props.onSuccess?.();
+      }
+    } catch (e) {
+      console.error("Google Sign-In error:", e);
+      setErrorMessage("Une erreur s'est produite lors de la connexion avec Google.");
+      setInfoMessage("");
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -212,6 +251,10 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
             props.onSuccess?.();
           }
         } else {
+          const updatedSession = await getAuthSessionQueryForm.refetch();
+          if (updatedSession?.user) {
+            setStep("LOGGED_IN");
+          }
           props.onSuccess?.();
         }
         setOtp("");
@@ -237,7 +280,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
     });
     setIsLoading(false);
     if (!result?.ok) {
-      if (result?.error?.includes("Code OTP invalide") || result?.error?.includes("Mot de passe invalide")) {
+      if (result?.error?.includes("Code OTP invalide") || result?.error?.includes("Mot de passe invalide") || result?.error?.includes("Identifiants invalides")) {
         setErrorMessage("Email, mot de passe ou code 2FA invalide.");
       } else {
         setErrorMessage(result?.error || "Erreur de connexion inconnue.");
@@ -280,8 +323,8 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
       </Show>
 
       <Show when={step() === "INITIAL"}>
-        <form onSubmit={handleInitialSubmit} class="space-y-4">
-          <h2 class="text-2xl font-bold text-on-surface">Connexion / Inscription</h2>
+        <form onSubmit={handleInitialSubmit} class="space-y-6">
+          <h2 class="text-2xl font-bold text-center text-on-surface">Connexion / Inscription</h2>
           <div>
             <label for="email-initial" class="block text-sm font-medium text-on-surface-variant">Email</label>
             <input type="email" id="email-initial" value={email()} onInput={(e) => setEmail(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50" autocomplete="email" />
@@ -290,8 +333,26 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
             <label for="password-initial" class="block text-sm font-medium text-on-surface-variant">Mot de passe</label>
             <input type="password" id="password-initial" value={password()} onInput={(e) => setPassword(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50" autocomplete="current-password" />
           </div>
-          <button type="submit" disabled={isLoading()} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
-            {isLoading() ? "Chargement..." : "Continuer"}
+          <button type="submit" disabled={isLoading() || isGoogleLoading()} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
+            {isLoading() ? "Chargement..." : "Continuer avec Email"}
+          </button>
+
+          <div class="relative flex py-3 items-center">
+            <div class="flex-grow border-t border-outline-variant"></div>
+            <span class="flex-shrink mx-4 text-on-surface-variant text-sm">Ou</span>
+            <div class="flex-grow border-t border-outline-variant"></div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isLoading() || isGoogleLoading()}
+            class="w-full flex items-center justify-center gap-2 rounded-md border border-outline bg-surface px-4 py-2 text-on-surface hover:bg-surface-variant disabled:opacity-50"
+          >
+            <svg class="w-5 h-5" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+              <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 65.9L351.5 129.7c-24.3-23.5-57.5-39.9-93.5-39.9-70.5 0-127.5 57.3-127.5 128s57 128 127.5 128c79.1 0 108.5-59.3 112.5-90.9H248v-64h239.5c1.4 12.3 2.5 24.4 2.5 36.8z"></path>
+            </svg>
+            {isGoogleLoading() ? "Redirection..." : "Se connecter avec Google"}
           </button>
         </form>
       </Show>
