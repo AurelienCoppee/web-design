@@ -1,10 +1,12 @@
 import { Component, createSignal, onMount, Show, createEffect } from "solid-js";
 import AuthModal from "./AuthModal";
+import { A } from "@solidjs/router";
+import BecomeOrganizerModal from "./BecomeOrganizerModal";
 import { signOut } from "@auth/solid-start/client";
+import { createAsync, query } from "@solidjs/router";
 import { getRequestEvent } from "solid-js/web";
 import { getSession as getServerSession } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
-import { createAsync, query } from "@solidjs/router";
 
 const getAuthSessionQueryHeader = query(
     async () => {
@@ -24,32 +26,35 @@ const getAuthSessionQueryHeader = query(
     "authSessionHeader"
 );
 
+
 const Header: Component = () => {
-    const [open, setOpen] = createSignal(false);
+    const [menuOpen, setMenuOpen] = createSignal(false);
     let buttonRef: HTMLButtonElement | undefined;
-    let menuRef: HTMLDivElement | undefined;
+    let menuPopupRef: HTMLDivElement | undefined;
     const [isAuthModalOpen, setIsAuthModalOpen] = createSignal(false);
-    const [isDarkMode, setIsDarkMode] = createSignal(false);
-    const [contrastLevel, setContrastLevel] = createSignal<"default" | "mc" | "hc">("default");
+    const [authModalInitialStep, setAuthModalInitialStep] = createSignal<"INITIAL" | "SETUP_2FA">("INITIAL");
+
+    const [isBecomeOrganizerModalOpen, setIsBecomeOrganizerModalOpen] = createSignal(false);
 
     const sessionAsync = createAsync(() => getAuthSessionQueryHeader());
+
+    const [isDarkMode, setIsDarkMode] = createSignal(false);
+    const [contrastLevel, setContrastLevel] = createSignal<"default" | "mc" | "hc">("default");
 
     onMount(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (
-                menuRef &&
-                !menuRef.contains(e.target as Node) &&
+                menuPopupRef &&
+                !menuPopupRef.contains(e.target as Node) &&
                 buttonRef &&
                 !buttonRef.contains(e.target as Node)
             ) {
-                setOpen(false);
+                setMenuOpen(false);
             }
         };
         window.addEventListener("click", handleClickOutside);
-        return () => window.removeEventListener("click", handleClickOutside);
-    });
+        const unmount = () => window.removeEventListener("click", handleClickOutside);
 
-    onMount(() => {
         const storedTheme = localStorage.getItem("theme");
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
         if (storedTheme === "dark" || (!storedTheme && prefersDark)) {
@@ -57,11 +62,11 @@ const Header: Component = () => {
         } else {
             setIsDarkMode(false);
         }
-
         const storedContrast = localStorage.getItem("contrast") as typeof contrastLevel.initialValue;
         if (storedContrast && ["default", "mc", "hc"].includes(storedContrast)) {
             setContrastLevel(storedContrast);
         }
+        return unmount;
     });
 
     createEffect(() => {
@@ -73,7 +78,6 @@ const Header: Component = () => {
             localStorage.setItem("theme", "light");
         }
     });
-
     createEffect(() => {
         document.documentElement.classList.remove("mc", "hc");
         if (contrastLevel() === "mc") {
@@ -84,10 +88,8 @@ const Header: Component = () => {
         localStorage.setItem("contrast", contrastLevel());
     });
 
-    const handleThemeToggle = () => {
-        setIsDarkMode(!isDarkMode());
-    };
 
+    const handleThemeToggle = () => setIsDarkMode(!isDarkMode());
     const handleContrastChange = (event: Event) => {
         const value = (event.target as HTMLInputElement).value;
         if (value === "0") setContrastLevel("default");
@@ -98,13 +100,24 @@ const Header: Component = () => {
     const handleSignOut = async () => {
         await signOut({ redirect: false });
         setIsAuthModalOpen(false);
-        setOpen(false);
-        getAuthSessionQueryHeader.refetch();
+        setMenuOpen(false);
     };
 
     const openLoginModal = () => {
+        setAuthModalInitialStep("INITIAL");
         setIsAuthModalOpen(true);
-        setOpen(false);
+        setMenuOpen(false);
+    };
+
+    const openActivate2FAModal = () => {
+        setAuthModalInitialStep("SETUP_2FA");
+        setIsAuthModalOpen(true);
+        setMenuOpen(false);
+    };
+
+    const openBecomeOrganizerModal = () => {
+        setIsBecomeOrganizerModalOpen(true);
+        setMenuOpen(false);
     };
 
     const getContrastValue = () => {
@@ -113,53 +126,84 @@ const Header: Component = () => {
         return "0";
     };
 
+    createEffect(() => {
+        if (!isAuthModalOpen() || !isBecomeOrganizerModalOpen()) {
+        }
+    });
+
+
     return (
-        <header class="fixed top-0 left-0 right-0 z-50 text-on-surface">
+        <header class="fixed top-0 left-0 right-0 z-50 text-on-surface bg-surface">
             <div class="flex items-center justify-between h-16 px-4">
-                <h1 class="text-2xl font-bold tracking-tight">RALVO</h1>
+                <A href="/" class="text-2xl font-bold tracking-tight text-on-surface no-underline">RALVO</A>
 
                 <div class="relative ml-auto">
                     <button
-                        ref={el => (buttonRef = el)}
+                        ref={buttonRef}
                         aria-haspopup="true"
-                        aria-expanded={open()}
+                        aria-expanded={menuOpen()}
                         class="p-1 rounded-full hover:bg-surface-variant transition flex items-center justify-center"
                         style={{ width: "40px", height: "40px" }}
-                        onClick={() => setOpen(!open())}
+                        onClick={() => setMenuOpen(!menuOpen())}
                     >
                         <Show
                             when={!sessionAsync.loading && sessionAsync()?.user?.image}
                             fallback={
-                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"> {/* Use currentColor */}
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                                     <path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Zm80-80h480v-32q0-11-5.5-20T700-306q-54-27-109-40.5T480-360q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32Zm240-320q33 0 56.5-23.5T560-640q0-33-23.5-56.5T480-720q-33 0-56.5 23.5T400-640q0 33 23.5 56.5T480-560Zm0-80Zm0 400Z" />
                                 </svg>
                             }
                         >
                             <img
                                 src={sessionAsync()?.user?.image!}
-                                alt="Profile picture"
+                                alt="Photo de profil"
                                 class="rounded-full w-8 h-8 object-cover"
                             />
                         </Show>
                     </button>
 
-                    {open() && (
+                    <Show when={menuOpen()}>
                         <div
-                            ref={el => (menuRef = el)}
-                            class="absolute right-0 mt-2 w-64 bg-surface-container shadow-mat-level2 rounded-lg z-[70] animate-fade-in p-2"
+                            ref={menuPopupRef}
+                            class="absolute right-0 mt-2 w-72 bg-surface-container shadow-mat-level2 rounded-lg z-[70] animate-fade-in p-2" // Increased width for new items
                         >
                             <ul class="text-on-surface-variant space-y-1">
                                 <Show
                                     when={!sessionAsync.loading && sessionAsync()?.user}
                                     fallback={
                                         <li>
-                                            <button onClick={openLoginModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Connexion</button>
+                                            <button onClick={openLoginModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Connexion / Inscription</button>
                                         </li>
                                     }
                                 >
                                     <li class="px-3 py-2 text-sm text-on-surface-variant/70">
-                                        Connecté en tant que {sessionAsync()?.user?.email}
+                                        Connecté: {sessionAsync()?.user?.email}
                                     </li>
+
+                                    <Show when={!sessionAsync()?.user?.twoFactorEnabled}>
+                                        <li>
+                                            <button onClick={openActivate2FAModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Activer 2FA</button>
+                                        </li>
+                                    </Show>
+
+                                    <Show when={sessionAsync()?.user?.role === 'USER'}>
+                                        <li>
+                                            <button
+                                                onClick={openBecomeOrganizerModal}
+                                                disabled={!sessionAsync()?.user?.isTwoFactorAuthenticated}
+                                                class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title={!sessionAsync()?.user?.isTwoFactorAuthenticated ? "Veuillez activer la 2FA pour devenir organisateur." : ""}
+                                            >
+                                                Devenir Organisateur
+                                            </button>
+                                            <Show when={!sessionAsync()?.user?.isTwoFactorAuthenticated}>
+                                                <p class="px-3 pt-0 pb-1 text-xs text-on-surface-variant/70">
+                                                    (2FA requise)
+                                                </p>
+                                            </Show>
+                                        </li>
+                                    </Show>
+                                    <hr class="border-outline-variant my-1" />
                                     <li>
                                         <button onClick={handleSignOut} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Se déconnecter</button>
                                     </li>
@@ -182,7 +226,7 @@ const Header: Component = () => {
                                         step="1"
                                         value={getContrastValue()}
                                         onInput={handleContrastChange}
-                                        class="w-full h-2 bg-surface-variant rounded-lg appearance-none cursor-pointer accent-primary" // accent-primary for the thumb
+                                        class="w-full h-2 bg-surface-variant rounded-lg appearance-none cursor-pointer accent-primary"
                                     />
                                     <div class="flex justify-between text-xs text-on-surface-variant/70 mt-1">
                                         <span>Normal</span>
@@ -192,10 +236,11 @@ const Header: Component = () => {
                                 </li>
                             </ul>
                         </div>
-                    )}
+                    </Show>
                 </div>
             </div>
-            <AuthModal isOpen={isAuthModalOpen} setIsOpen={setIsAuthModalOpen} />
+            <AuthModal isOpen={isAuthModalOpen} setIsOpen={setIsAuthModalOpen} initialAuthStep={authModalInitialStep()} />
+            <BecomeOrganizerModal isOpen={isBecomeOrganizerModalOpen} setIsOpen={setIsBecomeOrganizerModalOpen} />
         </header>
     );
 };

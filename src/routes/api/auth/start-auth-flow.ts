@@ -15,7 +15,8 @@ export async function POST(event: APIEvent) {
         }
 
         let user = await db.user.findUnique({ where: { email } });
-        let needs2FASetup = false;
+        let responsePayload: Record<string, any> = {};
+        let statusCode = 200;
         let message;
 
         if (!user) {
@@ -27,10 +28,16 @@ export async function POST(event: APIEvent) {
                     hashedPassword,
                     twoFactorSecret: secret,
                     twoFactorEnabled: false,
+                    role: "USER",
                 },
             });
-            needs2FASetup = true;
-            message = "Inscription réussie. Veuillez configurer l'authentification à deux facteurs.";
+            message = "Inscription réussie.";
+            responsePayload = {
+                status: "SIGNUP_SUCCESS_PROMPT_2FA",
+                message: message,
+                email: user.email,
+                otpauthUrl: authenticator.keyuri(user.email!, "Ralvo", secret)
+            };
         } else {
             if (!user.hashedPassword) {
                 return new Response(
@@ -46,42 +53,31 @@ export async function POST(event: APIEvent) {
                 );
             }
 
-            if (!user.twoFactorEnabled || !user.twoFactorSecret) {
-                if (!user.twoFactorSecret) {
-                    const secret = authenticator.generateSecret();
-                    await db.user.update({
+            if (user.twoFactorEnabled && user.twoFactorSecret) {
+                responsePayload = {
+                    status: "2FA_REQUIRED",
+                    email: user.email,
+                    message: "Veuillez entrer votre code d'authentification à deux facteurs.",
+                };
+            } else {
+                let secret = user.twoFactorSecret;
+                if (!secret) {
+                    secret = authenticator.generateSecret();
+                    user = await db.user.update({
                         where: { id: user.id },
-                        data: { twoFactorSecret: secret, twoFactorEnabled: false },
+                        data: { twoFactorSecret: secret },
                     });
-                    user.twoFactorSecret = secret;
                 }
-                needs2FASetup = true;
-                message = "Veuillez configurer l'authentification à deux facteurs pour continuer.";
+                message = "Connexion réussie.";
+                responsePayload = {
+                    status: "LOGIN_SUCCESS_PROMPT_2FA",
+                    message: message,
+                    email: user.email,
+                    otpauthUrl: authenticator.keyuri(user.email!, "Ralvo", secret)
+                };
             }
         }
-
-        if (needs2FASetup && user.twoFactorSecret) {
-            const otpauthUrl = authenticator.keyuri(user.email!, "Ralvo", user.twoFactorSecret);
-            return new Response(
-                JSON.stringify({
-                    status: "SETUP_2FA_REQUIRED",
-                    otpauthUrl: otpauthUrl,
-                    email: user.email,
-                    message: message
-                }),
-                { status: 200, headers: { "Content-Type": "application/json" } }
-            );
-        } else if (user.twoFactorEnabled && user.twoFactorSecret) {
-            return new Response(
-                JSON.stringify({ status: "2FA_REQUIRED", email: user.email }),
-                { status: 200, headers: { "Content-Type": "application/json" } }
-            );
-        } else {
-            return new Response(
-                JSON.stringify({ error: "Configuration utilisateur inattendue concernant la 2FA." }),
-                { status: 500, headers: { "Content-Type": "application/json" } }
-            );
-        }
+        return new Response(JSON.stringify(responsePayload), { status: statusCode, headers: { "Content-Type": "application/json" } });
 
     } catch (error: any) {
         console.error("Erreur dans /api/auth/start-auth-flow:", error);
