@@ -42,7 +42,6 @@ export const authOptions: SolidAuthConfig = {
         Google({
             clientId: serverEnv.GOOGLE_CLIENT_ID!,
             clientSecret: serverEnv.GOOGLE_CLIENT_SECRET!,
-
         }),
         CredentialsProvider({
             authorize: async (credentials) => {
@@ -92,39 +91,52 @@ export const authOptions: SolidAuthConfig = {
             if (account?.provider === "google") {
                 const dbUser = await db.user.findUnique({ where: { email: user.email! } });
                 if (dbUser) {
-                    user.id = dbUser.id;
-                    user.role = dbUser.role;
-                    user.twoFactorEnabled = dbUser.twoFactorEnabled;
-                    return true;
                 }
             }
             return true;
         },
         async jwt({ token, user, account, trigger, session }) {
-            if (user) {
+            if (account && user) {
                 token.id = user.id;
                 token.role = user.role;
-                token.twoFactorEnabled = !!user.twoFactorEnabled;
+                token.name = user.name;
+                token.email = user.email;
+                token.picture = user.image;
 
-                if (account?.provider === "google") {
+                if (account.provider === "google") {
                     token.isTwoFactorAuthenticated = true;
+                    token.twoFactorEnabled = true;
                     const dbUser = await db.user.findUnique({ where: { id: user.id } });
                     if (dbUser) {
                         token.role = dbUser.role;
-                        token.twoFactorEnabled = !!dbUser.twoFactorEnabled;
                     }
-
-                } else if (account?.provider === "credentials") {
+                } else if (account.provider === "credentials") {
+                    token.twoFactorEnabled = !!user.twoFactorEnabled;
                     token.isTwoFactorAuthenticated = !!(user as any)._isTwoFactorAuthenticatedThisFlow;
                 }
+            } else if (user && !account) {
+                token.id = token.id || user.id;
+                token.role = token.role || user.role;
+                token.name = token.name || user.name;
+                token.email = token.email || user.email;
+                token.picture = token.picture || user.image;
+                if (typeof user.twoFactorEnabled === 'boolean' && typeof token.twoFactorEnabled === 'undefined') {
+                    token.twoFactorEnabled = user.twoFactorEnabled;
+                }
+                if (typeof user.isTwoFactorAuthenticated === 'boolean' && typeof token.isTwoFactorAuthenticated === 'undefined') {
+                    token.isTwoFactorAuthenticated = user.isTwoFactorAuthenticated;
+                }
             }
+
 
             if (trigger === "update") {
                 if (session?.action === "USER_UPDATED_2FA_STATUS") {
                     const dbUser = await db.user.findUnique({ where: { id: token.id as string } });
                     if (dbUser) {
                         token.twoFactorEnabled = dbUser.twoFactorEnabled;
-                        token.isTwoFactorAuthenticated = !dbUser.twoFactorEnabled;
+                        if (!dbUser.twoFactorEnabled) {
+                            token.isTwoFactorAuthenticated = true;
+                        }
                     }
                 }
                 if (session?.action === "USER_ROLE_UPDATED" && session.role) {

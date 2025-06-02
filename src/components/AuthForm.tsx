@@ -1,6 +1,5 @@
 import { createSignal, Show, VoidComponent, createEffect } from "solid-js";
 import { signIn, signOut } from "@auth/solid-start/client";
-import QRCode from "qrcode";
 import { query, createAsync } from "@solidjs/router";
 import { getRequestEvent } from "solid-js/web";
 import { getSession as getServerSession } from "@auth/solid-start";
@@ -81,6 +80,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
         setStep("INITIAL");
       } else {
         setOtpauthUrl(data.otpauthUrl);
+        setQrCodeDataUrl(data.qrCodeDataUrl || "");
         setEmail(data.email);
         setStep("SETUP_2FA");
       }
@@ -92,21 +92,12 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
     }
   };
 
-
-  createEffect(async () => {
-    if (otpauthUrl() && (step() === "SETUP_2FA" || step() === "PROMPT_2FA")) {
-      try {
-        const url = await QRCode.toDataURL(otpauthUrl());
-        setQrCodeDataUrl(url);
-      } catch (err) {
-        console.error("Failed to generate QR code", err);
-        setErrorMessage("Erreur lors de la génération du QR code.");
-        setQrCodeDataUrl("");
-      }
-    } else {
+  createEffect(() => {
+    if (!otpauthUrl()) {
       setQrCodeDataUrl("");
     }
   });
+
 
   const handleInitialSubmit = async (e: Event) => {
     e.preventDefault();
@@ -132,6 +123,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
       if (data.status === "SIGNUP_SUCCESS_PROMPT_2FA" || data.status === "LOGIN_SUCCESS_PROMPT_2FA") {
         setInfoMessage(data.message);
         setOtpauthUrl(data.otpauthUrl || "");
+        setQrCodeDataUrl(data.qrCodeDataUrl || "");
         setIsInitial2FASetupFlow(true);
         setStep("PROMPT_2FA");
       } else if (data.status === "2FA_REQUIRED") {
@@ -186,11 +178,18 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
     }
   };
 
+
   const handle2FAPromptChoice = async (setupNow: boolean) => {
     if (setupNow) {
-      if (!otpauthUrl()) {
-        setErrorMessage("URL de configuration 2FA manquante. Veuillez réessayer.");
-        setStep("INITIAL");
+      if (!otpauthUrl() || !qrCodeDataUrl()) {
+        setErrorMessage("URL ou QR code de configuration 2FA manquant. Veuillez réessayer.");
+        await fetchOtpAuthUrlForLoggedInUser();
+        if (otpauthUrl() && qrCodeDataUrl()) {
+          setStep("SETUP_2FA");
+        } else {
+          setErrorMessage("Impossible de récupérer les détails 2FA. Veuillez vous reconnecter.");
+          setStep("INITIAL");
+        }
         return;
       }
       setStep("SETUP_2FA");
@@ -213,6 +212,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
       }
     }
   };
+
 
   const handleSetup2FASubmit = async (e: Event) => {
     e.preventDefault();
@@ -306,12 +306,12 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
     setIsLoading(false);
   };
 
+
   return (
     <div class="container mx-auto p-4 max-w-md">
       <Show when={step() === "INITIAL"}>
         <form
           method="post"
-          action="/api/auth/start-auth-flow"
           onSubmit={handleInitialSubmit}
           class="space-y-6"
         >
@@ -355,7 +355,9 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
           <Show when={qrCodeDataUrl() && otpauthUrl()}>
             <p class="text-on-surface-variant text-sm">Si oui, vous pouvez scanner ce QR code ou utiliser la clé ci-dessous.</p>
             <div class="p-2 bg-white inline-block my-2 rounded"><img src={qrCodeDataUrl()} alt="QR Code 2FA" /></div>
-            <p class="text-xs text-on-surface-variant">Clé: <code class="bg-surface-variant text-on-surface-variant p-1 rounded text-xs">{new URL(otpauthUrl()).searchParams.get("secret")}</code></p>
+            <p class="text-xs text-on-surface-variant">Clé: <code class="bg-surface-variant text-on-surface-variant p-1 rounded text-xs break-all">{
+              otpauthUrl() ? new URL(otpauthUrl()).searchParams.get("secret") : ""
+            }</code></p>
           </Show>
           <div class="flex gap-4">
             <button onClick={() => handle2FAPromptChoice(true)} disabled={isLoading()} class="flex-1 rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
@@ -376,7 +378,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
             <div class="p-2 bg-white inline-block my-2 rounded">
               <img src={qrCodeDataUrl()} alt="QR Code pour 2FA" />
             </div>
-            <p class="text-xs text-on-surface-variant">Ou entrez cette clé manuellement : <code class="bg-surface-variant text-on-surface-variant p-1 rounded text-xs">{
+            <p class="text-xs text-on-surface-variant">Ou entrez cette clé manuellement : <code class="bg-surface-variant text-on-surface-variant p-1 rounded text-xs break-all">{
               otpauthUrl() ? new URL(otpauthUrl()).searchParams.get("secret") : ""
             }</code></p>
           </Show>
@@ -405,10 +407,38 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
       </Show>
 
       <Show when={errorMessage()}>
-        <p class="mt-4 text-error">{errorMessage()}</p>
+        <p class="mt-4 text-sm text-error bg-error-container text-on-error-container p-3 rounded-md">{errorMessage()}</p>
       </Show>
       <Show when={infoMessage() && step() !== "PROMPT_2FA" && step() !== "ENTER_2FA" && step() !== "LOGGED_IN"}>
-        <p class="mt-4 text-primary">{infoMessage()}</p>
+        <p class="mt-4 text-sm text-primary bg-primary-container text-on-primary-container p-3 rounded-md">{infoMessage()}</p>
+      </Show>
+
+      <Show when={step() === "LOGGED_IN" && sessionAsync()}>
+        <div class="space-y-4 text-center">
+          <h2 class="text-2xl font-bold text-on-surface">Bienvenue, {sessionAsync()?.user?.name || sessionAsync()?.user?.email}!</h2>
+          <p class="text-on-surface-variant">Vous êtes connecté.</p>
+          <Show when={sessionAsync()?.user?.image}>
+            <img src={sessionAsync()?.user?.image!} alt="Avatar" class="w-24 h-24 rounded-full mx-auto" />
+          </Show>
+          <Show when={!sessionAsync()?.user?.twoFactorEnabled}>
+            <button
+              onClick={() => {
+                setAuthModalInitialStep("SETUP_2FA");
+                fetchOtpAuthUrlForLoggedInUser();
+              }}
+              class="mt-2 rounded-md bg-secondary-container px-4 py-2 text-sm text-on-secondary-container hover:brightness-110"
+            >
+              Activer l'authentification à deux facteurs
+            </button>
+          </Show>
+          <button
+            onClick={handleSignOut}
+            disabled={isLoading()}
+            class="mt-4 w-full rounded-md bg-error-container px-4 py-2 text-on-error-container hover:brightness-110 disabled:opacity-50"
+          >
+            {isLoading() ? "Déconnexion..." : "Se Déconnecter"}
+          </button>
+        </div>
       </Show>
     </div>
   );

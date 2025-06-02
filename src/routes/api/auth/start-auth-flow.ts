@@ -2,6 +2,7 @@ import { APIEvent } from "@solidjs/start/server";
 import { db } from "~/lib/db";
 import bcrypt from "bcryptjs";
 import { authenticator } from "otplib";
+import QRCode from "qrcode";
 
 export async function POST(event: APIEvent) {
     try {
@@ -17,7 +18,7 @@ export async function POST(event: APIEvent) {
             email = formData.get("email") as string;
             password = formData.get("password") as string;
         } else {
-            return new Response(JSON.stringify({ error: "Unsupported Content-Type" }), { status: 415 });
+            return new Response(JSON.stringify({ error: "Unsupported Content-Type" }), { status: 415, headers: { "Content-Type": "application/json" } });
         }
 
         if (!email || !password) {
@@ -31,6 +32,8 @@ export async function POST(event: APIEvent) {
         let responsePayload: Record<string, any> = {};
         let statusCode = 200;
         let message;
+        let otpauthUrlForResponse: string | undefined = undefined;
+        let qrCodeDataUrlForResponse: string | undefined = undefined;
 
         if (!user) {
             const hashedPassword = await bcrypt.hash(password, 10);
@@ -45,11 +48,18 @@ export async function POST(event: APIEvent) {
                 },
             });
             message = "Inscription réussie.";
+            otpauthUrlForResponse = authenticator.keyuri(user.email!, "Ralvo", secret);
+            try {
+                qrCodeDataUrlForResponse = await QRCode.toDataURL(otpauthUrlForResponse);
+            } catch (err) {
+                console.error("Failed to generate QR code for new user:", err);
+            }
             responsePayload = {
                 status: "SIGNUP_SUCCESS_PROMPT_2FA",
                 message: message,
                 email: user.email,
-                otpauthUrl: authenticator.keyuri(user.email!, "Ralvo", secret)
+                otpauthUrl: otpauthUrlForResponse,
+                qrCodeDataUrl: qrCodeDataUrlForResponse
             };
         } else {
             if (!user.hashedPassword) {
@@ -82,11 +92,18 @@ export async function POST(event: APIEvent) {
                     });
                 }
                 message = "Connexion réussie.";
+                otpauthUrlForResponse = authenticator.keyuri(user.email!, "Ralvo", secret);
+                try {
+                    qrCodeDataUrlForResponse = await QRCode.toDataURL(otpauthUrlForResponse);
+                } catch (err) {
+                    console.error("Failed to generate QR code for existing user prompting 2FA:", err);
+                }
                 responsePayload = {
                     status: "LOGIN_SUCCESS_PROMPT_2FA",
                     message: message,
                     email: user.email,
-                    otpauthUrl: authenticator.keyuri(user.email!, "Ralvo", secret)
+                    otpauthUrl: otpauthUrlForResponse,
+                    qrCodeDataUrl: qrCodeDataUrlForResponse
                 };
             }
         }
