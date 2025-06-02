@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, Show, createEffect } from "solid-js";
+import { Component, createSignal, onMount, Show, createEffect, createMemo } from "solid-js";
 import AuthModal from "./AuthModal";
 import { A } from "@solidjs/router";
 import BecomeOrganizerModal from "./BecomeOrganizerModal";
@@ -7,6 +7,7 @@ import { createAsync, query } from "@solidjs/router";
 import { getRequestEvent } from "solid-js/web";
 import { getSession as getServerSession } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
+import type { AuthStep } from "./AuthForm";
 
 const getAuthSessionQueryHeader = query(
     async () => {
@@ -31,12 +32,18 @@ const Header: Component = () => {
     const [menuOpen, setMenuOpen] = createSignal(false);
     let buttonRef: HTMLButtonElement | undefined;
     let menuPopupRef: HTMLDivElement | undefined;
+
     const [isAuthModalOpen, setIsAuthModalOpen] = createSignal(false);
-    const [authModalInitialStep, setAuthModalInitialStep] = createSignal<"INITIAL" | "SETUP_2FA">("INITIAL");
+    const [authModalInitialStep, setAuthModalInitialStep] = createSignal<AuthStep>("INITIAL");
+
 
     const [isBecomeOrganizerModalOpen, setIsBecomeOrganizerModalOpen] = createSignal(false);
 
-    const sessionAsync = createAsync(() => getAuthSessionQueryHeader());
+    const sessionAsync = createAsync(() => getAuthSessionQueryHeader(), {
+        initialValue: undefined,
+        deferStream: true
+    });
+
 
     const [isDarkMode, setIsDarkMode] = createSignal(false);
     const [contrastLevel, setContrastLevel] = createSignal<"default" | "mc" | "hc">("default");
@@ -53,38 +60,28 @@ const Header: Component = () => {
             }
         };
         window.addEventListener("click", handleClickOutside);
-        const unmount = () => window.removeEventListener("click", handleClickOutside);
 
         const storedTheme = localStorage.getItem("theme");
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        if (storedTheme === "dark" || (!storedTheme && prefersDark)) {
-            setIsDarkMode(true);
-        } else {
-            setIsDarkMode(false);
-        }
-        const storedContrast = localStorage.getItem("contrast") as typeof contrastLevel.initialValue;
+        setIsDarkMode(storedTheme === "dark" || (!storedTheme && prefersDark));
+
+        const storedContrast = localStorage.getItem("contrast") as ("default" | "mc" | "hc");
         if (storedContrast && ["default", "mc", "hc"].includes(storedContrast)) {
             setContrastLevel(storedContrast);
         }
-        return unmount;
+
+        return () => window.removeEventListener("click", handleClickOutside);
     });
 
     createEffect(() => {
-        if (isDarkMode()) {
-            document.documentElement.classList.add("dark");
-            localStorage.setItem("theme", "dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-            localStorage.setItem("theme", "light");
-        }
+        document.documentElement.classList.toggle("dark", isDarkMode());
+        localStorage.setItem("theme", isDarkMode() ? "dark" : "light");
     });
+
     createEffect(() => {
         document.documentElement.classList.remove("mc", "hc");
-        if (contrastLevel() === "mc") {
-            document.documentElement.classList.add("mc");
-        } else if (contrastLevel() === "hc") {
-            document.documentElement.classList.add("hc");
-        }
+        if (contrastLevel() === "mc") document.documentElement.classList.add("mc");
+        else if (contrastLevel() === "hc") document.documentElement.classList.add("hc");
         localStorage.setItem("contrast", contrastLevel());
     });
 
@@ -99,7 +96,6 @@ const Header: Component = () => {
 
     const handleSignOut = async () => {
         await signOut({ redirect: false });
-        setIsAuthModalOpen(false);
         setMenuOpen(false);
     };
 
@@ -126,9 +122,19 @@ const Header: Component = () => {
         return "0";
     };
 
-    createEffect(() => {
-        if (!isAuthModalOpen() || !isBecomeOrganizerModalOpen()) {
-        }
+    const canBecomeOrganizer = createMemo(() => {
+        const userSession = sessionAsync();
+        if (!userSession?.user) return false;
+        return userSession.user.isGoogleUser || (userSession.user.twoFactorEnabled && userSession.user.isTwoFactorAuthenticated);
+    });
+
+    const becomeOrganizerButtonTitle = createMemo(() => {
+        const userSession = sessionAsync();
+        if (!userSession?.user) return "Veuillez vous connecter.";
+        if (userSession.user.isGoogleUser) return "Devenir Organisateur";
+        if (!userSession.user.twoFactorEnabled) return "Veuillez activer la 2FA pour devenir organisateur.";
+        if (!userSession.user.isTwoFactorAuthenticated) return "Veuillez vérifier votre session 2FA (reconnexion si besoin).";
+        return "Devenir Organisateur";
     });
 
 
@@ -165,7 +171,7 @@ const Header: Component = () => {
                     <Show when={menuOpen()}>
                         <div
                             ref={menuPopupRef}
-                            class="absolute right-0 mt-2 w-72 bg-surface-container shadow-mat-level2 rounded-lg z-[70] animate-fade-in p-2" // Increased width for new items
+                            class="absolute right-0 mt-2 w-72 bg-surface-container shadow-mat-level2 rounded-lg z-[70] animate-fade-in p-2"
                         >
                             <ul class="text-on-surface-variant space-y-1">
                                 <Show
@@ -180,25 +186,25 @@ const Header: Component = () => {
                                         Connecté: {sessionAsync()?.user?.email}
                                     </li>
 
-                                    <Show when={!sessionAsync()?.user?.twoFactorEnabled}>
+                                    <Show when={!sessionAsync()?.user?.isGoogleUser && !sessionAsync()?.user?.twoFactorEnabled}>
                                         <li>
                                             <button onClick={openActivate2FAModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Activer 2FA</button>
                                         </li>
                                     </Show>
 
-                                    <Show when={sessionAsync()?.user?.role === 'USER'}>
+                                    <Show when={sessionAsync()?.user?.role === 'USER' || sessionAsync()?.user?.role === 'ORGANIZER'}>
                                         <li>
                                             <button
                                                 onClick={openBecomeOrganizerModal}
-                                                disabled={!sessionAsync()?.user?.isTwoFactorAuthenticated}
+                                                disabled={!canBecomeOrganizer()}
                                                 class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                                                title={!sessionAsync()?.user?.isTwoFactorAuthenticated ? "Veuillez activer la 2FA pour devenir organisateur." : ""}
+                                                title={becomeOrganizerButtonTitle()}
                                             >
                                                 Devenir Organisateur
                                             </button>
-                                            <Show when={!sessionAsync()?.user?.isTwoFactorAuthenticated}>
+                                            <Show when={!canBecomeOrganizer() && sessionAsync()?.user && !sessionAsync()?.user.isGoogleUser && !session.user.twoFactorEnabled}>
                                                 <p class="px-3 pt-0 pb-1 text-xs text-on-surface-variant/70">
-                                                    (2FA requise)
+                                                    (2FA requise pour devenir organisateur)
                                                 </p>
                                             </Show>
                                         </li>

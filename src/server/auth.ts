@@ -15,6 +15,7 @@ declare module "@auth/core/types" {
             role: string;
             twoFactorEnabled: boolean;
             isTwoFactorAuthenticated: boolean;
+            isGoogleUser?: boolean;
         } & Omit<AuthUser, "id">;
     }
     interface User {
@@ -22,6 +23,7 @@ declare module "@auth/core/types" {
         role?: string | null;
         twoFactorEnabled?: boolean | null;
         _isTwoFactorAuthenticatedThisFlow?: boolean;
+        isGoogleUser?: boolean;
     }
 }
 
@@ -31,6 +33,7 @@ declare module "@auth/core/jwt" {
         role?: string;
         twoFactorEnabled?: boolean;
         isTwoFactorAuthenticated?: boolean;
+        isGoogleUser?: boolean;
     }
 }
 
@@ -42,6 +45,18 @@ export const authOptions: SolidAuthConfig = {
         Google({
             clientId: serverEnv.GOOGLE_CLIENT_ID!,
             clientSecret: serverEnv.GOOGLE_CLIENT_SECRET!,
+            async profile(profile) {
+                const dbUser = await db.user.findUnique({ where: { email: profile.email } });
+                return {
+                    id: profile.sub,
+                    name: profile.name,
+                    email: profile.email,
+                    image: profile.picture,
+                    role: dbUser?.role ?? 'USER',
+                    twoFactorEnabled: dbUser?.twoFactorEnabled ?? false,
+                    isGoogleUser: true,
+                };
+            },
         }),
         CredentialsProvider({
             authorize: async (credentials) => {
@@ -50,24 +65,24 @@ export const authOptions: SolidAuthConfig = {
                 const otp = credentials.otp as string | undefined;
 
                 if (!email || !password) {
-                    throw new Error("Authorize: Email et mot de passe requis.");
+                    throw new Error("Email et mot de passe requis.");
                 }
 
                 const user = await db.user.findUnique({ where: { email } });
-                if (!user) throw new Error("Authorize: Utilisateur non trouvé.");
-                if (!user.hashedPassword) throw new Error("Authorize: Pas de mot de passe configuré pour ce compte.");
+                if (!user) throw new Error("Utilisateur non trouvé.");
+                if (!user.hashedPassword) throw new Error("Pas de mot de passe configuré pour ce compte. Essayez la connexion Google.");
 
                 const isValidPassword = await bcrypt.compare(password, user.hashedPassword);
-                if (!isValidPassword) throw new Error("Authorize: Mot de passe invalide.");
+                if (!isValidPassword) throw new Error("Mot de passe invalide.");
 
                 let isTwoFactorAuthenticatedForThisSignIn = !user.twoFactorEnabled;
 
                 if (user.twoFactorEnabled) {
-                    if (!user.twoFactorSecret) throw new Error("Authorize: Secret 2FA manquant pour l'utilisateur.");
-                    if (!otp) throw new Error("Authorize: Code OTP requis car la 2FA est activée.");
+                    if (!user.twoFactorSecret) throw new Error("Secret 2FA manquant pour l'utilisateur.");
+                    if (!otp) throw new Error("Code OTP requis car la 2FA est activée.");
 
                     const isValidOTP = authenticator.verify({ token: otp, secret: user.twoFactorSecret });
-                    if (!isValidOTP) throw new Error("Authorize: Code OTP invalide.");
+                    if (!isValidOTP) throw new Error("Code OTP invalide.");
                     isTwoFactorAuthenticatedForThisSignIn = true;
                 }
 
@@ -79,6 +94,7 @@ export const authOptions: SolidAuthConfig = {
                     role: user.role,
                     twoFactorEnabled: user.twoFactorEnabled,
                     _isTwoFactorAuthenticatedThisFlow: isTwoFactorAuthenticatedForThisSignIn,
+                    isGoogleUser: false,
                 };
             },
         }),
@@ -87,59 +103,37 @@ export const authOptions: SolidAuthConfig = {
         strategy: "jwt",
     },
     callbacks: {
-        async signIn({ user, account }) {
-            if (account?.provider === "google") {
-                const dbUser = await db.user.findUnique({ where: { email: user.email! } });
-                if (dbUser) {
-                }
-            }
-            return true;
-        },
         async jwt({ token, user, account, trigger, session }) {
-            if (account && user) {
+            if (user) {
                 token.id = user.id;
                 token.role = user.role;
                 token.name = user.name;
                 token.email = user.email;
                 token.picture = user.image;
+                token.twoFactorEnabled = !!user.twoFactorEnabled;
+                token.isGoogleUser = !!user.isGoogleUser;
 
-                if (account.provider === "google") {
+                if (user.isGoogleUser) {
                     token.isTwoFactorAuthenticated = true;
-                    token.twoFactorEnabled = true;
                     const dbUser = await db.user.findUnique({ where: { id: user.id } });
                     if (dbUser) {
                         token.role = dbUser.role;
+                        token.twoFactorEnabled = dbUser.twoFactorEnabled;
                     }
-                } else if (account.provider === "credentials") {
-                    token.twoFactorEnabled = !!user.twoFactorEnabled;
-                    token.isTwoFactorAuthenticated = !!(user as any)._isTwoFactorAuthenticatedThisFlow;
-                }
-            } else if (user && !account) {
-                token.id = token.id || user.id;
-                token.role = token.role || user.role;
-                token.name = token.name || user.name;
-                token.email = token.email || user.email;
-                token.picture = token.picture || user.image;
-                if (typeof user.twoFactorEnabled === 'boolean' && typeof token.twoFactorEnabled === 'undefined') {
-                    token.twoFactorEnabled = user.twoFactorEnabled;
-                }
-                if (typeof user.isTwoFactorAuthenticated === 'boolean' && typeof token.isTwoFactorAuthenticated === 'undefined') {
-                    token.isTwoFactorAuthenticated = user.isTwoFactorAuthenticated;
+                } else {
+                    token.isTwoFactorAuthenticated = !!user._isTwoFactorAuthenticatedThisFlow;
                 }
             }
 
-
-            if (trigger === "update") {
-                if (session?.action === "USER_UPDATED_2FA_STATUS") {
+            if (trigger === "update" && session) {
+                if (session.action === "USER_UPDATED_2FA_STATUS") {
                     const dbUser = await db.user.findUnique({ where: { id: token.id as string } });
                     if (dbUser) {
                         token.twoFactorEnabled = dbUser.twoFactorEnabled;
-                        if (!dbUser.twoFactorEnabled) {
-                            token.isTwoFactorAuthenticated = true;
-                        }
+                        token.isTwoFactorAuthenticated = !dbUser.twoFactorEnabled;
                     }
                 }
-                if (session?.action === "USER_ROLE_UPDATED" && session.role) {
+                if (session.action === "USER_ROLE_UPDATED" && session.role) {
                     token.role = session.role;
                 }
             }
@@ -150,6 +144,7 @@ export const authOptions: SolidAuthConfig = {
             if (token.role) session.user.role = token.role as string;
             session.user.twoFactorEnabled = !!token.twoFactorEnabled;
             session.user.isTwoFactorAuthenticated = !!token.isTwoFactorAuthenticated;
+            session.user.isGoogleUser = !!token.isGoogleUser;
             if (token.name) session.user.name = token.name;
             if (token.email) session.user.email = token.email;
             if (token.picture) session.user.image = token.picture;
