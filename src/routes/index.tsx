@@ -1,76 +1,30 @@
-import { type VoidComponent, createSignal, For, Show, createMemo, createEffect } from "solid-js";
+import { type VoidComponent, createSignal, For, Show, createMemo } from "solid-js";
 import { Meta, Title } from "@solidjs/meta";
 import { createAsync, query } from "@solidjs/router";
-import { getRequestEvent } from "solid-js/web";
-import { getSession } from "@auth/solid-start";
+import { getSession as getServerSession } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
 import AddEventFAB from "~/components/AddEventFAB";
 import CreateEventModal from "~/components/CreateEventModal";
 import EventDetailModal from "~/components/EventDetailModal";
-import type { Event as EventType, User as UserType } from "@prisma/client";
-
-type EventWithOrganizer = EventType & { organizer?: Pick<UserType, 'id' | 'name' | 'email'> };
+import { getUpcomingEvents, type EventWithOrganizer } from "~/server/queries/eventQueries";
+import { getRequestEvent } from "solid-js/web";
 
 const getSessionQuery = query(async () => {
   "use server";
   const event = getRequestEvent();
   if (!event) return null;
-  return await getSession(event.request, authOptions);
-}, "session");
-
-const getEventsQuery = query(async () => {
-  "use server";
-  const event = getRequestEvent();
-  if (!event) return [];
-
-  const host = event.request.headers.get("host") || "localhost:3000";
-  const protocol = host.startsWith("localhost") ? "http" : "https";
-  const response = await fetch(`${protocol}://${host}/api/events`);
-
-  if (!response.ok) {
-    console.error("Failed to fetch events from API:", response.status, await response.text());
-    return [];
-  }
-  try {
-    const events = await response.json();
-    return events as EventWithOrganizer[];
-  } catch (e) {
-    console.error("Failed to parse events JSON:", e);
-    return [];
-  }
-}, "events");
+  return await getServerSession(event.request, authOptions);
+}, "sessionIndexPage");
 
 
 const Home: VoidComponent = () => {
   const sessionData = createAsync(() => getSessionQuery());
-  const eventsResource = createAsync(() => getEventsQuery());
+  const eventsResource = createAsync(() => getUpcomingEvents());
 
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = createSignal(false);
   const [isEventDetailModalOpen, setIsEventDetailModalOpen] = createSignal(false);
   const [selectedEvent, setSelectedEvent] = createSignal<EventWithOrganizer | null>(null);
 
-  const [eventsList, setEventsList] = createSignal<EventWithOrganizer[]>([]);
-  createEffect(() => {
-    const res = eventsResource();
-    if (res) {
-      setEventsList(res as EventWithOrganizer[]);
-    }
-  });
-
-  const handleEventCreatedAndRefetch = async () => {
-    try {
-      if (eventsResource && typeof (eventsResource as any).refetch === 'function') {
-        await (eventsResource as any).refetch();
-      } else if (getEventsQuery && typeof (getEventsQuery as any).refetch === 'function') {
-        await (getEventsQuery as any).refetch();
-      } else {
-        const freshEvents = await getEventsQuery();
-        setEventsList(freshEvents as EventWithOrganizer[]);
-      }
-    } catch (error) {
-      console.error("Error refetching events:", error);
-    }
-  };
 
   const openEventDetails = (event: EventWithOrganizer) => {
     setSelectedEvent(event);
@@ -91,7 +45,7 @@ const Home: VoidComponent = () => {
 
   const groupedEvents = createMemo(() => {
     const groups: Record<string, EventWithOrganizer[]> = {};
-    (eventsList() || []).forEach(event => {
+    (eventsResource() || []).forEach(event => {
       const eventDate = new Date(event.date).toDateString();
       if (!groups[eventDate]) {
         groups[eventDate] = [];
@@ -109,7 +63,7 @@ const Home: VoidComponent = () => {
   return (
     <>
       <Title>Ralvo</Title>
-      <Meta name="description" content="Browse upcoming events." />
+      <Meta name="description" content="Parcourez les événements à venir." />
       <main class="min-h-screen bg-background text-on-background pt-20 pb-10 px-4 md:px-8">
         <div class="container mx-auto">
           <h1 class="text-4xl font-bold tracking-tight text-on-background mb-8 text-center">
@@ -158,7 +112,6 @@ const Home: VoidComponent = () => {
       <CreateEventModal
         isOpen={isCreateEventModalOpen}
         setIsOpen={setIsCreateEventModalOpen}
-        onEventCreated={handleEventCreatedAndRefetch}
       />
       <EventDetailModal
         isOpen={isEventDetailModalOpen}

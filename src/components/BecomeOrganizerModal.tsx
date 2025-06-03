@@ -1,46 +1,31 @@
-import { Show, type VoidComponent, Setter, Accessor, createSignal } from "solid-js";
+import { Show, type VoidComponent, Setter, Accessor, createSignal, createEffect } from "solid-js";
+import { requestOrganizerRoleAction } from "~/server/actions/userActions";
+import { useSubmission } from "@solidjs/router";
 
 interface BecomeOrganizerModalProps {
     isOpen: Accessor<boolean>;
     setIsOpen: Setter<boolean>;
+    onSuccess?: () => void;
 }
 
-const BecomeOrganizerForm: VoidComponent<{ onSuccess: () => void }> = (props) => {
-    const [formData, setFormData] = createSignal({ details: "" });
-    const [message, setMessage] = createSignal("");
-    const [error, setError] = createSignal("");
-    const [isLoading, setIsLoading] = createSignal(false);
+const BecomeOrganizerForm: VoidComponent<{ onSuccess: () => void, closeModal: () => void }> = (props) => {
+    const [details, setDetails] = createSignal("");
+    const submission = useSubmission(requestOrganizerRoleAction);
 
-    const handleSubmit = async (e: Event) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setMessage("");
-        setError("");
-        try {
-            const response = await fetch("/api/user/request-organizer-role", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formData()),
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                setError(data.error || "Erreur lors de la soumission.");
-            } else {
-                setMessage(data.message || "Demande envoyée !");
-                setTimeout(() => props.onSuccess(), 2000);
-            }
-        } catch (err) {
-            setError("Erreur de communication.");
-        } finally {
-            setIsLoading(false);
+    createEffect(() => {
+        if (submission.result && !submission.pending && !submission.error) {
+            setTimeout(() => {
+                props.onSuccess();
+                props.closeModal();
+            }, 2000);
         }
-    };
+    });
 
     return (
-        <form onSubmit={handleSubmit} class="space-y-4">
+        <form action={requestOrganizerRoleAction} method="post" class="space-y-4">
             <h3 class="text-xl font-semibold text-on-surface">Devenir Organisateur</h3>
             <p class="text-sm text-on-surface-variant">
-                Veuillez fournir quelques informations supplémentaires.
+                Veuillez fournir quelques informations supplémentaires si vous le souhaitez (optionnel).
             </p>
             <div>
                 <label for="organizer-details" class="block text-sm font-medium text-on-surface-variant">
@@ -48,17 +33,21 @@ const BecomeOrganizerForm: VoidComponent<{ onSuccess: () => void }> = (props) =>
                 </label>
                 <textarea
                     id="organizer-details"
+                    name="details"
                     rows="4"
                     class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary"
-                    value={formData().details}
-                    onInput={(e) => setFormData({ ...formData(), details: e.currentTarget.value })}
-                    required
+                    value={details()}
+                    onInput={(e) => setDetails(e.currentTarget.value)}
                 />
             </div>
-            <Show when={message()}><p class="text-green-500">{message()}</p></Show>
-            <Show when={error()}><p class="text-error">{error()}</p></Show>
-            <button type="submit" disabled={isLoading()} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
-                {isLoading() ? "Envoi..." : "Soumettre la demande"}
+            <Show when={submission.result?.message && !submission.error}>
+                <p class="text-green-500">{submission.result.message}</p>
+            </Show>
+            <Show when={submission.error}>
+                <p class="text-error">{submission.error.error || "Erreur lors de la soumission."}</p>
+            </Show>
+            <button type="submit" disabled={submission.pending} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
+                {submission.pending ? "Envoi..." : "Soumettre la demande"}
             </button>
         </form>
     );
@@ -68,6 +57,12 @@ const BecomeOrganizerForm: VoidComponent<{ onSuccess: () => void }> = (props) =>
 const BecomeOrganizerModal: VoidComponent<BecomeOrganizerModalProps> = (props) => {
     const handleClose = () => {
         props.setIsOpen(false);
+    };
+
+    const handleSuccess = () => {
+        if (props.onSuccess) {
+            props.onSuccess();
+        }
     };
 
     return (
@@ -81,7 +76,7 @@ const BecomeOrganizerModal: VoidComponent<BecomeOrganizerModalProps> = (props) =
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" /></svg>
                     </button>
-                    <BecomeOrganizerForm onSuccess={handleClose} />
+                    <BecomeOrganizerForm onSuccess={handleSuccess} closeModal={handleClose} />
                 </div>
             </div>
         </Show>

@@ -1,16 +1,22 @@
-import { createSignal, Show, VoidComponent, createEffect } from "solid-js";
+import { createSignal, Show, VoidComponent, createEffect, onMount } from "solid-js";
 import { signIn, signOut } from "@auth/solid-start/client";
-import { query, createAsync } from "@solidjs/router";
+import { query, createAsync, useAction, useSubmission } from "@solidjs/router";
 import { getRequestEvent } from "solid-js/web";
 import { getSession as getServerSession } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
+import {
+  startAuthFlowAction,
+  createUserAction,
+  request2FASetupDetailsAction,
+  verifyAndEnable2FAAction
+} from "~/server/actions/authActions";
 
 interface AuthFormProps {
   onSuccess?: () => void;
   initialAuthStep?: AuthStep;
 }
 
-type AuthStep = "INITIAL" | "CONFIRM_PASSWORD_SIGNUP" | "PROMPT_INITIAL_2FA_SETUP" | "SETUP_2FA" | "ENTER_2FA" | "LOGGED_IN";
+export type AuthStep = "INITIAL" | "CONFIRM_PASSWORD_SIGNUP" | "PROMPT_INITIAL_2FA_SETUP" | "SETUP_2FA" | "ENTER_2FA" | "LOGGED_IN";
 
 const getAuthSessionQueryForm = query(
   async () => {
@@ -27,7 +33,7 @@ const getAuthSessionQueryForm = query(
       return null;
     }
   },
-  "authSessionForm"
+  "authSessionFormQuery"
 );
 
 
@@ -40,14 +46,21 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
   const [otpauthUrl, setOtpauthUrl] = createSignal("");
   const [qrCodeDataUrl, setQrCodeDataUrl] = createSignal("");
   const [errorMessage, setErrorMessage] = createSignal("");
-  const [isLoading, setIsLoading] = createSignal(false);
-  const [isGoogleLoading, setIsGoogleLoading] = createSignal(false);
   const [infoMessage, setInfoMessage] = createSignal("");
-
   const [firstPasswordAttempt, setFirstPasswordAttempt] = createSignal("");
 
-
   const sessionAsync = createAsync(() => getAuthSessionQueryForm());
+
+  const execStartAuthFlow = useAction(startAuthFlowAction);
+  const execCreateUser = useAction(createUserAction);
+  const execRequest2FADetails = useAction(request2FASetupDetailsAction);
+  const execVerifyAndEnable2FA = useAction(verifyAndEnable2FAAction);
+
+  const initialFormSubmission = useSubmission(startAuthFlowAction);
+  const signupConfirmSubmission = useSubmission(createUserAction);
+  const setup2FASubmission = useSubmission(verifyAndEnable2FAAction);
+  const loginWith2FASubmission = useSubmission(startAuthFlowAction);
+
 
   createEffect(() => {
     const currentSession = sessionAsync();
@@ -64,219 +77,174 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
     if (props.initialAuthStep && !sessionAsync()?.user) {
       setStep(props.initialAuthStep);
       if (props.initialAuthStep === "SETUP_2FA") {
-        fetchOtpAuthUrlForLoggedInUser();
+        handleRequest2FASetupDetails();
       }
     }
   });
 
-  const fetchOtpAuthUrlForLoggedInUser = async () => {
-    setIsLoading(true);
+  createEffect(() => {
+    let msg = "";
+    if (initialFormSubmission.error) msg = initialFormSubmission.error.error || "Erreur initiale.";
+    if (signupConfirmSubmission.error) msg = signupConfirmSubmission.error.error || "Erreur d'inscription.";
+    if (setup2FASubmission.error) msg = setup2FASubmission.error.error || "Erreur configuration 2FA.";
+    setErrorMessage(msg);
+  });
+
+
+  const handleRequest2FASetupDetails = async () => {
     setErrorMessage("");
-    try {
-      const response = await fetch("/api/auth/request-2fa-setup-details", { method: "POST" });
-      const data = await response.json();
-      if (!response.ok) {
-        setErrorMessage(data.error || "Erreur lors de la récupération des détails 2FA.");
-        setStep("INITIAL");
-      } else {
-        setOtpauthUrl(data.otpauthUrl);
-        setQrCodeDataUrl(data.qrCodeDataUrl || "");
-        setEmail(data.email);
-        setStep("SETUP_2FA");
-      }
-    } catch (e) {
-      setErrorMessage("Erreur serveur pour détails 2FA.");
+    const result = await execRequest2FADetails();
+    if (result?.error) {
+      setErrorMessage(result.error || "Erreur lors de la récupération des détails 2FA.");
       setStep(sessionAsync()?.user ? "LOGGED_IN" : "INITIAL");
-    } finally {
-      setIsLoading(false);
+    } else if (result) {
+      setOtpauthUrl(result.otpauthUrl);
+      setQrCodeDataUrl(result.qrCodeDataUrl || "");
+      setEmail(result.email);
+      setStep("SETUP_2FA");
     }
   };
 
-  createEffect(() => {
-    if (!otpauthUrl()) {
-      setQrCodeDataUrl("");
-    }
-  });
-
-  const handleInitialSubmit = async (e: Event) => {
+  const handleInitialSubmit = async (e: SubmitEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setErrorMessage("");
     setInfoMessage("");
     setFirstPasswordAttempt(password());
 
-    try {
-      const response = await fetch("/api/auth/start-auth-flow", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email(), password: password() }),
-      });
-      const data = await response.json();
-      setIsLoading(false);
+    const result = await execStartAuthFlow({ email: email(), password: password() });
 
-      if (!response.ok) {
-        setErrorMessage(data.error || `Erreur ${response.status}`);
-        return;
-      }
+    if (result?.error) {
+      setErrorMessage(result.error);
+      return;
+    }
 
-      if (data.email) setEmail(data.email);
+    if (result?.email) setEmail(result.email);
 
-      if (data.status === "NEW_USER_CONFIRM_PASSWORD") {
-        setInfoMessage(data.message);
-        setStep("CONFIRM_PASSWORD_SIGNUP");
-      } else if (data.status === "LOGIN_SUCCESS_PROMPT_2FA_SETUP") {
-        setInfoMessage(data.message);
-        setOtpauthUrl(data.otpauthUrl || "");
-        setQrCodeDataUrl(data.qrCodeDataUrl || "");
-        setStep("PROMPT_INITIAL_2FA_SETUP");
-      } else if (data.status === "2FA_REQUIRED") {
-        setInfoMessage(data.message || "Code 2FA requis.");
-        setStep("ENTER_2FA");
-      } else {
-        setErrorMessage("Réponse inattendue du serveur.");
-      }
-    } catch (error) {
-      setIsLoading(false);
-      console.error("Catch block error (handleInitialSubmit):", error);
-      setErrorMessage("Erreur de connexion au serveur.");
+    if (result?.status === "NEW_USER_CONFIRM_PASSWORD") {
+      setInfoMessage(result.message);
+      setStep("CONFIRM_PASSWORD_SIGNUP");
+    } else if (result?.status === "LOGIN_SUCCESS_PROMPT_2FA_SETUP") {
+      setInfoMessage(result.message);
+      setOtpauthUrl(result.otpauthUrl || "");
+      setQrCodeDataUrl(result.qrCodeDataUrl || "");
+      setStep("PROMPT_INITIAL_2FA_SETUP");
+    } else if (result?.status === "2FA_REQUIRED") {
+      setInfoMessage(result.message || "Code 2FA requis.");
+      setStep("ENTER_2FA");
+    } else {
+      setErrorMessage("Réponse inattendue du serveur lors de l'initialisation.");
     }
   };
 
-  const handleSignupConfirmSubmit = async (e: Event) => {
+  const handleSignupConfirmSubmit = async (e: SubmitEvent) => {
     e.preventDefault();
     if (firstPasswordAttempt() !== confirmPassword()) {
       setErrorMessage("Les mots de passe ne correspondent pas.");
       return;
     }
-    setIsLoading(true);
     setErrorMessage("");
     setInfoMessage("");
-    try {
-      const response = await fetch("/api/auth/create-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email(), password: firstPasswordAttempt(), confirmPassword: confirmPassword() }),
-      });
-      const data = await response.json();
-      setIsLoading(false);
 
-      if (!response.ok) {
-        setErrorMessage(data.error || `Erreur ${response.status}`);
-        return;
-      }
+    const result = await execCreateUser({ email: email(), password: firstPasswordAttempt(), confirmPassword: confirmPassword() });
 
-      if (data.status === "SIGNUP_SUCCESS_PROMPT_2FA_SETUP") {
-        setInfoMessage(data.message);
-        setOtpauthUrl(data.otpauthUrl || "");
-        setQrCodeDataUrl(data.qrCodeDataUrl || "");
-        setPassword(firstPasswordAttempt());
-        setStep("PROMPT_INITIAL_2FA_SETUP");
-      } else {
-        setErrorMessage("Réponse inattendue après la création du compte.");
-      }
-    } catch (error) {
-      setIsLoading(false);
-      console.error("Catch block error (handleSignupConfirmSubmit):", error);
-      setErrorMessage("Erreur lors de la création du compte.");
+    if (result?.error) {
+      setErrorMessage(result.error);
+      return;
+    }
+
+    if (result?.status === "SIGNUP_SUCCESS_PROMPT_2FA_SETUP") {
+      setInfoMessage(result.message);
+      setOtpauthUrl(result.otpauthUrl || "");
+      setQrCodeDataUrl(result.qrCodeDataUrl || "");
+      setPassword(firstPasswordAttempt());
+      setStep("PROMPT_INITIAL_2FA_SETUP");
+    } else {
+      setErrorMessage("Réponse inattendue après la création du compte.");
     }
   };
 
+
   const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
     setErrorMessage("");
     setInfoMessage("Redirection vers Google...");
     try {
       await signIn("google");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Google Sign-In error:", e);
-      setErrorMessage("Une erreur s'est produite lors de la connexion avec Google.");
+      setErrorMessage(e.message || "Une erreur s'est produite lors de la connexion avec Google.");
       setInfoMessage("");
-      setIsGoogleLoading(false);
     }
   };
 
   const handleInitial2FAPromptChoice = async (setupNow: boolean) => {
     if (setupNow) {
-      if (!otpauthUrl() || !qrCodeDataUrl()) {
+      if (!otpauthUrl()) {
         setErrorMessage("Détails de configuration 2FA manquants. Essayez de vous reconnecter.");
         setStep("INITIAL");
         return;
       }
       setStep("SETUP_2FA");
     } else {
-      setIsLoading(true);
-      setErrorMessage("");
       setInfoMessage("Connexion en cours...");
       const result = await signIn("credentials", {
         redirect: false,
         email: email(),
         password: password(),
       });
-      setIsLoading(false);
-      if (!result?.ok) {
+      if (!result?.ok || result?.error) {
         setErrorMessage(result?.error || "Erreur de connexion. Veuillez vérifier vos identifiants.");
         setPassword("");
       } else {
         setInfoMessage("Connexion réussie!");
+        await getAuthSessionQueryForm.refetch();
         props.onSuccess?.();
       }
     }
   };
 
-  const handleSetup2FASubmit = async (e: Event) => {
+  const handleSetup2FASubmit = async (e: SubmitEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setErrorMessage("");
-    try {
-      const response = await fetch("/api/auth/verify-2fa-setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email(), otp: otp() }),
-      });
-      const data = await response.json();
-      setIsLoading(false);
 
-      if (!response.ok) {
-        setErrorMessage(data.error || "Erreur lors de la vérification du code 2FA.");
-        setOtp("");
-        return;
-      }
+    const result = await execVerifyAndEnable2FA({ email: email(), otp: otp() });
 
-      if (data.status === "2FA_SETUP_COMPLETE") {
-        setInfoMessage("2FA activée avec succès!");
+    if (result?.error) {
+      setErrorMessage(result.error);
+      setOtp("");
+      return;
+    }
 
-        if (step() === "PROMPT_INITIAL_2FA_SETUP" || step() === "SETUP_2FA" && !sessionAsync()?.user) {
-          setInfoMessage("2FA activée. Connexion en cours...");
-          const result = await signIn("credentials", {
-            redirect: false,
-            email: email(),
-            password: password(),
-            otp: otp(),
-          });
-          if (!result?.ok) {
-            setErrorMessage(result?.error || "Erreur de connexion post-setup 2FA.");
-            setStep("ENTER_2FA");
-          } else {
-            props.onSuccess?.();
-          }
+    if (result?.status === "2FA_SETUP_COMPLETE") {
+      setInfoMessage(result.message || "2FA activée avec succès!");
+      await getAuthSessionQueryForm.refetch();
+
+      if (step() === "PROMPT_INITIAL_2FA_SETUP" || (step() === "SETUP_2FA" && !sessionAsync()?.user)) {
+        setInfoMessage("2FA activée. Connexion en cours...");
+        const signInResult = await signIn("credentials", {
+          redirect: false,
+          email: email(),
+          password: password(),
+          otp: otp(),
+        });
+        if (!signInResult?.ok || signInResult?.error) {
+          setErrorMessage(signInResult?.error || "Erreur de connexion après l'activation de la 2FA.");
+          setStep("ENTER_2FA");
         } else {
           await getAuthSessionQueryForm.refetch();
           props.onSuccess?.();
         }
-        setOtp("");
       } else {
-        setErrorMessage("Réponse inattendue lors du setup 2FA.");
+        props.onSuccess?.();
       }
-    } catch (error) {
-      setIsLoading(false);
-      setErrorMessage("Erreur de communication pour le setup 2FA.");
       setOtp("");
+    } else {
+      setErrorMessage("Réponse inattendue lors de la configuration de la 2FA.");
     }
   };
 
-  const handleLoginWith2FASubmit = async (e: Event) => {
+
+  const handleLoginWith2FASubmit = async (e: SubmitEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setErrorMessage("");
     const result = await signIn("credentials", {
       redirect: false,
@@ -284,8 +252,8 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
       password: password(),
       otp: otp(),
     });
-    setIsLoading(false);
-    if (!result?.ok) {
+
+    if (!result?.ok || result?.error) {
       if (result?.error?.includes("Code OTP invalide") || result?.error?.includes("Mot de passe invalide") || result?.error?.includes("Identifiants invalides")) {
         setErrorMessage("Email, mot de passe ou code 2FA invalide.");
       } else {
@@ -293,12 +261,12 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
       }
       setOtp("");
     } else {
+      await getAuthSessionQueryForm.refetch();
       props.onSuccess?.();
     }
   };
 
   const handleSignOut = async () => {
-    setIsLoading(true);
     await signOut({ redirect: false });
     setEmail("");
     setPassword("");
@@ -310,7 +278,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
     setQrCodeDataUrl("");
     setFirstPasswordAttempt("");
     setStep("INITIAL");
-    setIsLoading(false);
+    await getAuthSessionQueryForm.refetch();
   };
 
 
@@ -327,17 +295,17 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
             <label for="password-initial" class="block text-sm font-medium text-on-surface-variant">Mot de passe</label>
             <input type="password" id="password-initial" value={password()} onInput={(e) => setPassword(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="current-password" />
           </div>
-          <button type="submit" disabled={isLoading() || isGoogleLoading()} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
-            {isLoading() ? "Chargement..." : "Continuer"}
+          <button type="submit" disabled={execStartAuthFlow.pending} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
+            {execStartAuthFlow.pending ? "Chargement..." : "Continuer"}
           </button>
           <div class="relative flex py-3 items-center">
             <div class="flex-grow border-t border-outline-variant"></div>
             <span class="flex-shrink mx-4 text-on-surface-variant text-sm">Ou</span>
             <div class="flex-grow border-t border-outline-variant"></div>
           </div>
-          <button type="button" onClick={handleGoogleSignIn} disabled={isLoading() || isGoogleLoading()} class="w-full flex items-center justify-center gap-2 rounded-md border border-outline bg-surface px-4 py-2 text-on-surface hover:bg-surface-variant disabled:opacity-50">
+          <button type="button" onClick={handleGoogleSignIn} disabled={execStartAuthFlow.pending} class="w-full flex items-center justify-center gap-2 rounded-md border border-outline bg-surface px-4 py-2 text-on-surface hover:bg-surface-variant disabled:opacity-50">
             <svg class="w-5 h-5" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 65.9L351.5 129.7c-24.3-23.5-57.5-39.9-93.5-39.9-70.5 0-127.5 57.3-127.5 128s57 128 127.5 128c79.1 0 108.5-59.3 112.5-90.9H248v-64h239.5c1.4 12.3 2.5 24.4 2.5 36.8z"></path></svg>
-            {isGoogleLoading() ? "Redirection..." : "Se connecter avec Google"}
+            Se connecter avec Google
           </button>
         </form>
       </Show>
@@ -354,8 +322,8 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
             <label for="password-confirm" class="block text-sm font-medium text-on-surface-variant">Confirmer le mot de passe</label>
             <input type="password" id="password-confirm" value={confirmPassword()} onInput={(e) => setConfirmPassword(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="new-password" />
           </div>
-          <button type="submit" disabled={isLoading()} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
-            {isLoading() ? "Création..." : "Créer le compte"}
+          <button type="submit" disabled={execCreateUser.pending} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
+            {execCreateUser.pending ? "Création..." : "Créer le compte"}
           </button>
         </form>
       </Show>
@@ -369,12 +337,16 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
             <div class="p-2 bg-white inline-block my-2 rounded"><img src={qrCodeDataUrl()} alt="QR Code 2FA" /></div>
             <p class="text-xs text-on-surface-variant">Clé: <code class="bg-surface-variant text-on-surface-variant p-1 rounded text-xs break-all">{otpauthUrl() ? new URL(otpauthUrl()).searchParams.get("secret") : ""}</code></p>
           </Show>
+          <Show when={!qrCodeDataUrl() && otpauthUrl()}>
+            <p class="text-on-surface-variant text-sm">La génération du QR code a échoué. Vous pouvez utiliser la clé suivante avec votre application d'authentification :</p>
+            <p class="text-xs text-on-surface-variant">Clé: <code class="bg-surface-variant text-on-surface-variant p-1 rounded text-xs break-all">{otpauthUrl() ? new URL(otpauthUrl()).searchParams.get("secret") : ""}</code></p>
+          </Show>
           <div class="flex gap-4">
-            <button onClick={() => handleInitial2FAPromptChoice(true)} disabled={isLoading()} class="flex-1 rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
-              {isLoading() ? "..." : "Oui, Configurer 2FA"}
+            <button onClick={() => handleInitial2FAPromptChoice(true)} disabled={execVerifyAndEnable2FA.pending || execCreateUser.pending} class="flex-1 rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
+              Oui, Configurer 2FA
             </button>
-            <button onClick={() => handleInitial2FAPromptChoice(false)} disabled={isLoading()} class="flex-1 rounded-md bg-secondary-container px-4 py-2 text-on-secondary-container hover:brightness-110 disabled:opacity-50">
-              {isLoading() ? "..." : "Non, plus tard"}
+            <button onClick={() => handleInitial2FAPromptChoice(false)} disabled={execVerifyAndEnable2FA.pending || execCreateUser.pending} class="flex-1 rounded-md bg-secondary-container px-4 py-2 text-on-secondary-container hover:brightness-110 disabled:opacity-50">
+              Non, plus tard
             </button>
           </div>
         </div>
@@ -388,14 +360,21 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
             <div class="p-2 bg-white inline-block my-2 rounded">
               <img src={qrCodeDataUrl()} alt="QR Code pour 2FA" />
             </div>
-            <p class="text-xs text-on-surface-variant">Ou entrez cette clé manuellement : <code class="bg-surface-variant text-on-surface-variant p-1 rounded text-xs break-all">{otpauthUrl() ? new URL(otpauthUrl()).searchParams.get("secret") : ""}</code></p>
           </Show>
+          <Show when={!qrCodeDataUrl() && otpauthUrl()}>
+            <p class="text-on-surface-variant text-sm">La génération du QR code a échoué, mais vous pouvez entrer cette clé manuellement :</p>
+          </Show>
+          <Show when={otpauthUrl()}>
+            <p class="text-xs text-on-surface-variant">Clé: <code class="bg-surface-variant text-on-surface-variant p-1 rounded text-xs break-all">{otpauthUrl() ? new URL(otpauthUrl()).searchParams.get("secret") : ""}</code></p>
+          </Show>
+
+
           <div>
             <label for="otp-setup" class="block text-sm font-medium text-on-surface-variant">Code de Vérification (6 chiffres)</label>
             <input type="text" id="otp-setup" inputmode="numeric" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="one-time-code" />
           </div>
-          <button type="submit" disabled={isLoading()} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
-            {isLoading() ? "Vérification..." : "Vérifier et Activer 2FA"}
+          <button type="submit" disabled={execVerifyAndEnable2FA.pending} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
+            {execVerifyAndEnable2FA.pending ? "Vérification..." : "Vérifier et Activer 2FA"}
           </button>
         </form>
       </Show>
@@ -408,18 +387,17 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
             <label for="otp-login" class="block text-sm font-medium text-on-surface-variant">Code 2FA (6 chiffres)</label>
             <input type="text" id="otp-login" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="one-time-code" />
           </div>
-          <button type="submit" disabled={isLoading()} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
-            {isLoading() ? "Connexion..." : "Se Connecter"}
+          <button type="submit" disabled={false} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
+            {false ? "Connexion..." : "Se Connecter"}
           </button>
         </form>
       </Show>
 
-
       <Show when={errorMessage()}>
-        <p class="mt-4 text-sm text-error bg-error-container text-on-error-container p-3 rounded-md">{errorMessage()}</p>
+        <p class="mt-4 text-sm bg-error-container text-on-error-container p-3 rounded-md whitespace-pre-wrap">{errorMessage()}</p>
       </Show>
-      <Show when={infoMessage() && step() !== "PROMPT_INITIAL_2FA_SETUP" && step() !== "ENTER_2FA" && step() !== "LOGGED_IN" && step() !== "CONFIRM_PASSWORD_SIGNUP"}>
-        <p class="mt-4 text-sm text-primary bg-primary-container text-on-primary-container p-3 rounded-md">{infoMessage()}</p>
+      <Show when={infoMessage() && !["PROMPT_INITIAL_2FA_SETUP", "ENTER_2FA", "LOGGED_IN", "CONFIRM_PASSWORD_SIGNUP"].includes(step())}>
+        <p class="mt-4 text-sm bg-primary-container text-on-primary-container p-3 rounded-md">{infoMessage()}</p>
       </Show>
 
       <Show when={step() === "LOGGED_IN" && sessionAsync()}>
@@ -431,20 +409,19 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
           </Show>
           <Show when={!sessionAsync()?.user?.isGoogleUser && !sessionAsync()?.user?.twoFactorEnabled}>
             <button
-              onClick={() => {
-                fetchOtpAuthUrlForLoggedInUser();
-              }}
-              class="mt-2 rounded-md bg-secondary-container px-4 py-2 text-sm text-on-secondary-container hover:brightness-110"
+              onClick={handleRequest2FASetupDetails}
+              disabled={execRequest2FADetails.pending}
+              class="mt-2 rounded-md bg-secondary-container px-4 py-2 text-sm text-on-secondary-container hover:brightness-110 disabled:opacity-50"
             >
-              Activer l'authentification à deux facteurs
+              {execRequest2FADetails.pending ? "Chargement..." : "Activer l'authentification à deux facteurs"}
             </button>
           </Show>
           <button
             onClick={handleSignOut}
-            disabled={isLoading()}
+            disabled={false}
             class="mt-4 w-full rounded-md bg-error-container px-4 py-2 text-on-error-container hover:brightness-110 disabled:opacity-50"
           >
-            {isLoading() ? "Déconnexion..." : "Se Déconnecter"}
+            Se Déconnecter
           </button>
         </div>
       </Show>
@@ -452,4 +429,4 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
   );
 };
 
-export default AuthForm;
+export default AuthForm
