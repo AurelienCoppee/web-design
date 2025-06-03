@@ -30,8 +30,11 @@ CREATE TABLE "users" (
     "name" TEXT,
     "email" TEXT,
     "email_verified" DATETIME,
+    "hashedPassword" TEXT,
+    "twoFactorSecret" TEXT,
+    "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false,
     "image" TEXT,
-    "role" TEXT NOT NULL DEFAULT 'ORGANIZER'
+    "role" TEXT NOT NULL DEFAULT 'USER'
 );
 
 -- CreateTable

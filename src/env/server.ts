@@ -1,5 +1,6 @@
-import { serverScheme } from "./schema"
-import type { ZodFormattedError } from "zod"
+// src/env/server.ts
+import { serverScheme } from "./schema";
+import type { ZodFormattedError } from "zod";
 
 export const formatErrors = (
     errors: ZodFormattedError<Map<string, string>, string>
@@ -11,14 +12,22 @@ export const formatErrors = (
         })
         .filter(Boolean)
 
-const env = serverScheme.safeParse(process.env)
+console.log("--- Début de la validation des variables d'environnement serveur (process.env direct) ---");
+console.log(`[ENV CHECK] GOOGLE_CLIENT_ID: ${process.env.GOOGLE_CLIENT_ID}`);
+console.log(`[ENV CHECK] GOOGLE_CLIENT_SECRET: ${process.env.GOOGLE_CLIENT_SECRET}`);
+console.log(`[ENV CHECK] AUTH_SECRET: ${process.env.AUTH_SECRET}`);
+console.log(`[ENV CHECK] NODE_ENV: ${process.env.NODE_ENV}`);
+console.log("--- Tentative de validation Zod sur process.env ---");
 
-if (env.success === false) {
+const envResult = serverScheme.safeParse(process.env);
+
+if (envResult.success === false) {
     console.error(
-        "❌ Invalid environment variables:\n",
-        ...formatErrors(env.error.format())
-    )
-    throw new Error("Invalid environment variables")
+        "❌ Échec de la validation Zod sur process.env. Erreur détaillée:",
+        JSON.stringify(envResult.error.format(), null, 2)
+    );
+    throw new Error("Variables d'environnement invalides - Échec de la validation Zod sur process.env");
 }
 
-export const serverEnv = env.data
+console.log("✅ Validation Zod sur process.env réussie!");
+export const serverEnv = envResult.data;
