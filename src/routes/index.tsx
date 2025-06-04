@@ -1,24 +1,15 @@
 import { type VoidComponent, createSignal, For, Show, createMemo } from "solid-js";
 import { Meta, Title } from "@solidjs/meta";
-import { createAsync, query } from "@solidjs/router";
-import { getSession as getServerSession } from "@auth/solid-start";
-import { authOptions } from "~/server/auth";
+import { createAsync } from "@solidjs/router";
 import AddEventFAB from "~/components/AddEventFAB";
 import CreateEventModal from "~/components/CreateEventModal";
 import EventDetailModal from "~/components/EventDetailModal";
 import { getUpcomingEvents, type EventWithOrganizer } from "~/server/queries/eventQueries";
-import { getRequestEvent } from "solid-js/web";
-
-const getSessionQuery = query(async () => {
-  "use server";
-  const event = getRequestEvent();
-  if (!event) return null;
-  return await getServerSession(event.request, authOptions);
-}, "sessionIndexPage");
+import { getAuthSession } from "~/server/queries/sessionQueries";
 
 
 const Home: VoidComponent = () => {
-  const sessionData = createAsync(() => getSessionQuery());
+  const sessionData = createAsync(() => getAuthSession());
   const eventsResource = createAsync(() => getUpcomingEvents());
 
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = createSignal(false);

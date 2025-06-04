@@ -1,4 +1,5 @@
 "use server";
+
 import { query } from "@solidjs/router";
 import { db } from "~/lib/db";
 import type { Event as EventTypePrisma, User as UserTypePrisma } from "@prisma/client";

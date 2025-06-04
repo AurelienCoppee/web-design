@@ -1,4 +1,5 @@
 "use server";
+
 import { action, json } from "@solidjs/router";
 import { db } from "~/lib/db";
 import bcrypt from "bcryptjs";
@@ -8,6 +9,7 @@ import { getSession as getServerSessionFromAuth } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
 import { getRequestEvent } from "solid-js/web";
 import { z } from "zod";
+import { getAuthSession } from "~/server/queries/sessionQueries";
 
 const emailPasswordSchema = z.object({
     email: z.string().email("Format d'email invalide."),
@@ -203,6 +205,6 @@ export const verifyAndEnable2FAAction = action(async (input: z.infer<typeof veri
 
     return json(
         { status: "2FA_SETUP_COMPLETE", message: "Authentification à deux facteurs activée avec succès !" },
-        { revalidate: ["authSessionFormQuery", "authSessionHeader"] }
+        { revalidate: [getAuthSession.key] }
     );
 }, "verifyAndEnable2FAAction");

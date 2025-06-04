@@ -3,29 +3,9 @@ import AuthModal from "./AuthModal";
 import { A } from "@solidjs/router";
 import BecomeOrganizerModal from "./BecomeOrganizerModal";
 import { signOut } from "@auth/solid-start/client";
-import { createAsync, query } from "@solidjs/router";
-import { getRequestEvent } from "solid-js/web";
-import { getSession as getServerSession } from "@auth/solid-start";
-import { authOptions } from "~/server/auth";
+import { createAsync } from "@solidjs/router";
 import type { AuthStep } from "./AuthForm";
-
-const getAuthSessionQueryHeader = query(
-    async () => {
-        "use server";
-        const event = getRequestEvent();
-        if (!event) {
-            console.error("No request event found on server for getAuthSessionQueryHeader");
-            return null;
-        }
-        try {
-            return await getServerSession(event.request, authOptions);
-        } catch (e) {
-            console.error("Error fetching session in getAuthSessionQueryHeader:", e);
-            return null;
-        }
-    },
-    "authSessionHeader"
-);
+import { getAuthSession } from "~/server/queries/sessionQueries";
 
 
 const Header: Component = () => {
@@ -39,7 +19,7 @@ const Header: Component = () => {
 
     const [isBecomeOrganizerModalOpen, setIsBecomeOrganizerModalOpen] = createSignal(false);
 
-    const sessionAsync = createAsync(() => getAuthSessionQueryHeader(), {
+    const sessionAsync = createAsync(() => getAuthSession(), {
         initialValue: undefined,
         deferStream: true
     });

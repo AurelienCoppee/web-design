@@ -1,15 +1,13 @@
 import { createSignal, Show, VoidComponent, createEffect, onMount } from "solid-js";
 import { signIn, signOut } from "@auth/solid-start/client";
-import { query, createAsync, useAction, useSubmission } from "@solidjs/router";
-import { getRequestEvent } from "solid-js/web";
-import { getSession as getServerSession } from "@auth/solid-start";
-import { authOptions } from "~/server/auth";
+import { createAsync, useAction, useSubmission } from "@solidjs/router";
 import {
   startAuthFlowAction,
   createUserAction,
   request2FASetupDetailsAction,
   verifyAndEnable2FAAction
 } from "~/server/actions/authActions";
+import { getAuthSession } from "~/server/queries/sessionQueries";
 
 interface AuthFormProps {
   onSuccess?: () => void;
@@ -17,24 +15,6 @@ interface AuthFormProps {
 }
 
 export type AuthStep = "INITIAL" | "CONFIRM_PASSWORD_SIGNUP" | "PROMPT_INITIAL_2FA_SETUP" | "SETUP_2FA" | "ENTER_2FA" | "LOGGED_IN";
-
-const getAuthSessionQueryForm = query(
-  async () => {
-    "use server";
-    const event = getRequestEvent();
-    if (!event) {
-      console.error("No request event found on server for getAuthSessionQueryForm");
-      return null;
-    }
-    try {
-      return await getServerSession(event.request, authOptions);
-    } catch (e) {
-      console.error("Error fetching session in getAuthSessionQueryForm:", e);
-      return null;
-    }
-  },
-  "authSessionFormQuery"
-);
 
 
 const AuthForm: VoidComponent<AuthFormProps> = (props) => {
@@ -49,7 +29,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
   const [infoMessage, setInfoMessage] = createSignal("");
   const [firstPasswordAttempt, setFirstPasswordAttempt] = createSignal("");
 
-  const sessionAsync = createAsync(() => getAuthSessionQueryForm());
+  const sessionAsync = createAsync(() => getAuthSession());
 
   const execStartAuthFlow = useAction(startAuthFlowAction);
   const execCreateUser = useAction(createUserAction);
@@ -114,7 +94,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
     const result = await execStartAuthFlow({ email: email(), password: password() });
 
     if (result?.error) {
-      setErrorMessage(result.error);
+      setErrorMessage(result.error.message || result.error);
       return;
     }
 
@@ -148,7 +128,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
     const result = await execCreateUser({ email: email(), password: firstPasswordAttempt(), confirmPassword: confirmPassword() });
 
     if (result?.error) {
-      setErrorMessage(result.error);
+      setErrorMessage(result.error.message || result.error);
       return;
     }
 
@@ -196,7 +176,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
         setPassword("");
       } else {
         setInfoMessage("Connexion réussie!");
-        await getAuthSessionQueryForm.refetch();
+        await getAuthSession.refetch();
         props.onSuccess?.();
       }
     }
@@ -209,14 +189,14 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
     const result = await execVerifyAndEnable2FA({ email: email(), otp: otp() });
 
     if (result?.error) {
-      setErrorMessage(result.error);
+      setErrorMessage(result.error.message || result.error);
       setOtp("");
       return;
     }
 
     if (result?.status === "2FA_SETUP_COMPLETE") {
       setInfoMessage(result.message || "2FA activée avec succès!");
-      await getAuthSessionQueryForm.refetch();
+      await getAuthSession.refetch();
 
       if (step() === "PROMPT_INITIAL_2FA_SETUP" || (step() === "SETUP_2FA" && !sessionAsync()?.user)) {
         setInfoMessage("2FA activée. Connexion en cours...");
@@ -230,7 +210,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
           setErrorMessage(signInResult?.error || "Erreur de connexion après l'activation de la 2FA.");
           setStep("ENTER_2FA");
         } else {
-          await getAuthSessionQueryForm.refetch();
+          await getAuthSession.refetch();
           props.onSuccess?.();
         }
       } else {
@@ -261,7 +241,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
       }
       setOtp("");
     } else {
-      await getAuthSessionQueryForm.refetch();
+      await getAuthSession.refetch();
       props.onSuccess?.();
     }
   };
@@ -278,7 +258,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
     setQrCodeDataUrl("");
     setFirstPasswordAttempt("");
     setStep("INITIAL");
-    await getAuthSessionQueryForm.refetch();
+    await getAuthSession.refetch();
   };
 
 

@@ -1,4 +1,5 @@
 "use server";
+
 import { action, json } from "@solidjs/router";
 import { getSession as getServerSessionFromAuth } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
