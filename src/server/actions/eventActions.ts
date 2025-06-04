@@ -1,5 +1,3 @@
-"use server";
-
 import { action, json } from "@solidjs/router";
 import { getSession as getServerSessionFromAuth } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
@@ -20,6 +18,7 @@ const createEventSchemaServer = z.object({
 });
 
 export const createEventAction = action(async (formData: FormData) => {
+    "use server";
     const reqEvent = getRequestEvent();
     if (!reqEvent) {
         console.error("Action: Request event not found for createEventAction");

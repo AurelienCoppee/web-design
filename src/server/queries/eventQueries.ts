@@ -1,5 +1,3 @@
-"use server";
-
 import { query } from "@solidjs/router";
 import { db } from "~/lib/db";
 import type { Event as EventTypePrisma, User as UserTypePrisma } from "@prisma/client";
@@ -7,6 +5,7 @@ import type { Event as EventTypePrisma, User as UserTypePrisma } from "@prisma/c
 export type EventWithOrganizer = EventTypePrisma & { organizer?: Pick<UserTypePrisma, 'id' | 'name' | 'email'> };
 
 export const getUpcomingEvents = query(async (): Promise<EventWithOrganizer[]> => {
+    "use server";
     try {
         const events = await db.event.findMany({
             where: {

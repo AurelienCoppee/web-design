@@ -1,5 +1,3 @@
-"use server";
-
 import { action, json } from "@solidjs/router";
 import { getSession as getServerSessionFromAuth } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
@@ -9,6 +7,7 @@ import type { Session } from "@auth/core/types";
 import { getAuthSession } from "~/server/queries/sessionQueries";
 
 export const requestOrganizerRoleAction = action(async (formData: FormData) => {
+    "use server";
     const reqEvent = getRequestEvent();
     if (!reqEvent) {
         console.error("Action: Request event not found for requestOrganizerRoleAction");

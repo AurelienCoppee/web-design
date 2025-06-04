@@ -1,11 +1,10 @@
-"use server";
-
 import { query } from "@solidjs/router";
 import { getSession as getServerSession } from "@auth/solid-start";
 import { authOptions } from "~/server/auth";
 import { getRequestEvent } from "solid-js/web";
 
 export const getAuthSession = query(async () => {
+    "use server";
     const event = getRequestEvent();
     if (!event) {
         console.error("[Query:getAuthSession] No request event found on server.");

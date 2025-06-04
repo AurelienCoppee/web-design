@@ -1,5 +1,3 @@
-"use server";
-
 import { action, json } from "@solidjs/router";
 import { db } from "~/lib/db";
 import bcrypt from "bcryptjs";
@@ -30,6 +28,7 @@ const verify2FASchema = z.object({
 
 
 export const startAuthFlowAction = action(async (input: z.infer<typeof emailPasswordSchema>) => {
+    "use server";
     const validation = emailPasswordSchema.safeParse(input);
     if (!validation.success) {
         return json({ error: "Données invalides.", details: validation.error.format() }, { status: 400, revalidate: "nothing" });
