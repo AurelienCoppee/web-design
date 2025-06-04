@@ -18,7 +18,6 @@ import type { Session } from "@auth/core/types";
 const AuthModal = lazy(() => import("./AuthModal"));
 const BecomeOrganizerModal = lazy(() => import("./BecomeOrganizerModal"));
 
-
 const Header: Component = () => {
     const [menuOpen, setMenuOpen] = createSignal(false);
     let buttonRef: HTMLButtonElement | undefined;
@@ -28,16 +27,38 @@ const Header: Component = () => {
     const [authModalInitialStep, setAuthModalInitialStep] = createSignal<AuthStep>("INITIAL");
     const [isBecomeOrganizerModalOpen, setIsBecomeOrganizerModalOpen] = createSignal(false);
 
-    const sessionAsync = createAsync(() => getAuthSession(), {
-        initialValue: undefined,
-        deferStream: true
+    const sessionResource = createAsync<Session | null, undefined | { loading: true }>(
+        () => getAuthSession(),
+        {
+            deferStream: true,
+            initialValue: { loading: true } as any
+        }
+    );
+
+    const currentUser = createMemo(() => {
+        const res = sessionResource();
+
+        if ((res as any)?.loading || sessionResource.loading) {
+            return null;
+        }
+        const user = (res as Session | null)?.user;
+        return user;
     });
-    const typedSession = createMemo(() => sessionAsync() as Session | null | undefined);
+
+    const profileImageUrl = createMemo(() => {
+        const url = currentUser()?.image;
+        return url;
+    });
+
+    const [profileImageError, setProfileImageError] = createSignal(false);
+    const [hasAttemptedHydration, setHasAttemptedHydration] = createSignal(false);
 
     const [isDarkMode, setIsDarkMode] = createSignal(false);
     const [contrastLevel, setContrastLevel] = createSignal<"default" | "mc" | "hc">("default");
 
     onMount(() => {
+        setHasAttemptedHydration(true);
+
         const handleClickOutside = (e: MouseEvent) => {
             if (
                 menuPopupRef &&
@@ -74,6 +95,10 @@ const Header: Component = () => {
         localStorage.setItem("contrast", contrastLevel());
     });
 
+    createEffect(() => {
+        const url = profileImageUrl();
+        setProfileImageError(false);
+    });
 
     const handleThemeToggle = () => setIsDarkMode(!isDarkMode());
     const handleContrastChange = (event: Event) => {
@@ -112,24 +137,37 @@ const Header: Component = () => {
         return "0";
     };
 
+    const showUserSpecificIcon = createMemo(() => {
+        const show = !!currentUser();
+        return show;
+    });
+
+    const conditionForImageTag = createMemo(() => {
+        const url = profileImageUrl();
+        const error = profileImageError();
+        const shouldShow = !!url && !error;
+        return shouldShow;
+    });
+
     const canBecomeOrganizer = createMemo(() => {
-        const userSession = typedSession();
-        if (!userSession?.user) return false;
-        if (userSession.user.provider !== "credentials") return true;
-        return userSession.user.twoFactorEnabled && userSession.user.isTwoFactorAuthenticated;
+        const user = currentUser();
+        if (!user) return false;
+        if (user.provider !== "credentials") return true;
+        return user.twoFactorEnabled && user.isTwoFactorAuthenticated;
     });
 
     const becomeOrganizerButtonTitle = createMemo(() => {
-        const userSession = typedSession();
-        if (!userSession?.user) return "Veuillez vous connecter.";
+        const user = currentUser();
+        if (!user) return "Veuillez vous connecter.";
 
-        if (userSession.user.provider !== "credentials") {
+        if (user.provider !== "credentials") {
             return "Devenir Organisateur";
         }
-        if (!userSession.user.twoFactorEnabled) return "Veuillez activer la 2FA pour devenir organisateur.";
-        if (!userSession.user.isTwoFactorAuthenticated) return "Veuillez vérifier votre session 2FA (reconnexion si besoin).";
+        if (!user.twoFactorEnabled) return "Veuillez activer la 2FA pour devenir organisateur.";
+        if (!user.isTwoFactorAuthenticated) return "Veuillez vérifier votre session 2FA (reconnexion si besoin).";
         return "Devenir Organisateur";
     });
+
 
     return (
         <header class="fixed top-0 left-0 right-0 z-50 text-on-surface bg-surface">
@@ -146,30 +184,36 @@ const Header: Component = () => {
                         onClick={() => setMenuOpen(!menuOpen())}
                     >
                         <Show
-                            when={!sessionAsync.loading && typedSession()}
+                            when={showUserSpecificIcon() && hasAttemptedHydration()}
                             fallback={
-                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                    <path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Zm80-80h480v-32q0-11-5.5-20T700-306q-54-27-109-40.5T480-360q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32Zm240-320q33 0 56.5-23.5T560-640q0-33-23.5-56.5T480-720q-33 0-56.5 23.5T400-640q0 33 23.5 56.5T480-560Zm0-80Zm0 400Z" />
+                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor" aria-hidden="true">
+                                    <path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" />
                                 </svg>
                             }
                         >
-                            {/* <Show
-                                when={typedSession()?.user?.image}
+                            <Show
+                                when={conditionForImageTag()}
                                 fallback={
-                                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor" aria-hidden="true">
                                         <path d="M234-276q51-39 114-61.5T480-360q69 0 132 22.5T726-276q35-41 54.5-93T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 59 19.5 111t54.5 93Zm246-164q-59 0-99.5-40.5T340-580q0-59 40.5-99.5T480-720q59 0 99.5 40.5T620-580q0 59-40.5 99.5T480-440Zm0 360q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q53 0 100-15.5t86-44.5q-39-29-86-44.5T480-280q-53 0-100 15.5T294-220q39 29 86 44.5T480-160Zm0-360q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43q0 26 17 43t43 17Zm0-60Zm0 360Z" />
                                     </svg>
                                 }
-                            > */}
-                            <img
-                                src={typedSession()?.user?.image}
-                                alt="Photo de profil"
-                                class="rounded-full w-8 h-8 object-cover"
-                            />
+                            >
+                                <img
+                                    src={profileImageUrl()!}
+                                    alt="Photo de profil"
+                                    class="rounded-full w-8 h-8 object-cover"
+                                    onError={() => {
+                                        requestAnimationFrame(() => {
+                                            if (hasAttemptedHydration()) {
+                                                setProfileImageError(true);
+                                            }
+                                        });
+                                    }}
+                                />
+                            </Show>
                         </Show>
-                        {/* </Show> */}
                     </button>
-
                     <Show when={menuOpen()}>
                         <div
                             ref={menuPopupRef}
@@ -177,7 +221,7 @@ const Header: Component = () => {
                         >
                             <ul class="text-on-surface-variant space-y-1">
                                 <Show
-                                    when={!sessionAsync.loading && typedSession()?.user}
+                                    when={showUserSpecificIcon() && hasAttemptedHydration()}
                                     fallback={
                                         <li>
                                             <button onClick={openLoginModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Connexion / Inscription</button>
@@ -185,31 +229,33 @@ const Header: Component = () => {
                                     }
                                 >
                                     <li class="px-3 py-2 text-sm text-on-surface-variant/70">
-                                        Connecté: {typedSession()?.user?.email}
+                                        Connecté: {currentUser()?.email}
                                     </li>
 
-                                    <Show when={typedSession()?.user?.provider === 'credentials' && !typedSession()?.user?.twoFactorEnabled}>
+                                    <Show when={currentUser()?.provider === 'credentials' && !currentUser()?.twoFactorEnabled}>
                                         <li>
                                             <button onClick={openActivate2FAModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Activer 2FA</button>
                                         </li>
                                     </Show>
 
-                                    <Show when={typedSession()?.user?.role === 'USER' || typedSession()?.user?.role === 'ORGANIZER'}>
-                                        <li>
-                                            <button
-                                                onClick={openBecomeOrganizerModal}
-                                                disabled={!canBecomeOrganizer()}
-                                                class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                                                title={becomeOrganizerButtonTitle()}
-                                            >
-                                                Devenir Organisateur
-                                            </button>
-                                            <Show when={!canBecomeOrganizer() && typedSession()?.user && typedSession()?.user?.provider === 'credentials' && !typedSession()?.user?.twoFactorEnabled}>
-                                                <p class="px-3 pt-0 pb-1 text-xs text-on-surface-variant/70">
-                                                    (2FA requise pour devenir organisateur)
-                                                </p>
-                                            </Show>
-                                        </li>
+                                    <Show when={currentUser()?.role === 'USER' || currentUser()?.role === 'ORGANIZER'}>
+                                        <Show when={currentUser()?.role !== 'ADMIN'}>
+                                            <li>
+                                                <button
+                                                    onClick={openBecomeOrganizerModal}
+                                                    disabled={!canBecomeOrganizer()}
+                                                    class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title={becomeOrganizerButtonTitle()}
+                                                >
+                                                    Devenir Organisateur
+                                                </button>
+                                                <Show when={!canBecomeOrganizer() && currentUser() && currentUser()?.provider === 'credentials' && !currentUser()?.twoFactorEnabled}>
+                                                    <p class="px-3 pt-0 pb-1 text-xs text-on-surface-variant/70">
+                                                        (2FA requise pour devenir organisateur)
+                                                    </p>
+                                                </Show>
+                                            </li>
+                                        </Show>
                                     </Show>
                                     <hr class="border-outline-variant my-1" />
                                     <li>
