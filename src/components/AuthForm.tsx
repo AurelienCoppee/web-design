@@ -289,7 +289,7 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
             <div class="flex-grow border-t border-outline-variant"></div>
           </div>
           <button type="button" onClick={handleGoogleSignIn} disabled={initialFormSubmission.pending} class="w-full flex items-center justify-center gap-2 rounded-md border border-outline bg-surface px-4 py-2 text-on-surface hover:bg-surface-variant disabled:opacity-50">
-            <svg class="w-5 h-5" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 65.9L351.5 129.7c-24.3-23.5-57.5-39.9-93.5-39.9-70.5 0-127.5 57.3-127.5 128s57 128 127.5 128c79.1 0 108.5-59.3 112.5-90.9H248v-64h239.5c1.4 12.3 2.5 24.4 2.5 36.8z"></path></svg>
+            <img src="/images/google.webp" alt="Google logo" class="w-5 h-5" />
             Se connecter avec Google
           </button>
         </form>
@@ -381,34 +381,8 @@ const AuthForm: VoidComponent<AuthFormProps> = (props) => {
       <Show when={errorMessage()}>
         <p class="mt-4 text-sm bg-error-container text-on-error-container p-3 rounded-md whitespace-pre-wrap">{errorMessage()}</p>
       </Show>
-      <Show when={infoMessage() && !["PROMPT_INITIAL_2FA_SETUP", "ENTER_2FA", "LOGGED_IN", "CONFIRM_PASSWORD_SIGNUP"].includes(step())}>
+      <Show when={infoMessage() && !["PROMPT_INITIAL_2FA_SETUP", "ENTER_2FA", "CONFIRM_PASSWORD_SIGNUP"].includes(step())}>
         <p class="mt-4 text-sm bg-primary-container text-on-primary-container p-3 rounded-md">{infoMessage()}</p>
-      </Show>
-
-      <Show when={step() === "LOGGED_IN" && typedSession()?.user}>
-        <div class="space-y-4 text-center">
-          <h2 class="text-2xl font-bold text-on-surface">Bienvenue, {typedSession()?.user?.name || typedSession()?.user?.email}!</h2>
-          <p class="text-on-surface-variant">Vous êtes connecté.</p>
-          <Show when={typedSession()?.user?.image}>
-            <img src={typedSession()?.user?.image!} alt="Avatar" class="w-24 h-24 rounded-full mx-auto" />
-          </Show>
-          <Show when={typedSession()?.user?.provider === 'credentials' && !typedSession()?.user?.twoFactorEnabled}>
-            <button
-              onClick={handleRequest2FASetupDetails}
-              disabled={execRequest2FADetails.pending}
-              class="mt-2 rounded-md bg-secondary-container px-4 py-2 text-sm text-on-secondary-container hover:brightness-110 disabled:opacity-50"
-            >
-              {execRequest2FADetails.pending ? "Chargement..." : "Activer l'authentification à deux facteurs"}
-            </button>
-          </Show>
-          <button
-            onClick={handleSignOut}
-            disabled={false}
-            class="mt-4 w-full rounded-md bg-error-container px-4 py-2 text-on-error-container hover:brightness-110 disabled:opacity-50"
-          >
-            Se Déconnecter
-          </button>
-        </div>
       </Show>
     </div>
   );

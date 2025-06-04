@@ -7,6 +7,9 @@ export default defineConfig({
     ssr: {
       external: ["@prisma/client"]
     },
+    // ssr: {
+    //   noExternal: ["@prisma/client"]
+    // },
     server: {
       watch: {
         ignored: ["**/prisma/**", "**/*.db", "**/*.sqlite"],
