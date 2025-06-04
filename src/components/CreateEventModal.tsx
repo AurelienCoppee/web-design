@@ -1,4 +1,12 @@
-import { Show, type VoidComponent, createSignal, Setter, Accessor, createEffect } from "solid-js";
+import {
+    Show,
+    type VoidComponent,
+    createSignal,
+    Setter,
+    Accessor,
+    createEffect,
+    onMount
+} from "solid-js";
 import { createEventAction } from "~/server/actions/eventActions";
 import { useSubmission } from "@solidjs/router";
 
@@ -21,6 +29,8 @@ type LocalEventFormData = {
 };
 
 const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
+    let titleInputRef: HTMLInputElement | undefined;
+
     const [formData, setFormData] = createSignal<Partial<LocalEventFormData>>({
         title: "",
         description: "",
@@ -34,6 +44,14 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
     });
 
     const submission = useSubmission(createEventAction);
+
+    onMount(() => {
+        createEffect(() => {
+            if (props.isOpen() && titleInputRef) {
+                setTimeout(() => titleInputRef?.focus(), 50);
+            }
+        });
+    });
 
     const handleClose = () => {
         if (submission.pending) return;
@@ -74,14 +92,10 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
                         </svg>
                     </button>
                     <h2 class="text-2xl font-bold text-on-surface mb-6">Créer un Événement</h2>
-                    <form
-                        action={createEventAction}
-                        method="post"
-                        class="space-y-4"
-                    >
+                    <form action={createEventAction} method="post" class="space-y-4">
                         <div>
                             <label for="title" class="block text-sm font-medium text-on-surface-variant">Titre</label>
-                            <input type="text" name="title" id="title" value={formData().title || ""} onInput={handleInput} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" />
+                            <input ref={titleInputRef} type="text" name="title" id="title" value={formData().title || ""} onInput={handleInput} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" />
                         </div>
                         <div>
                             <label for="description" class="block text-sm font-medium text-on-surface-variant">Description</label>
@@ -121,20 +135,27 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
                                 <input type="number" step="any" name="lng" id="lng" value={formData().lng || 0} onInput={handleInput} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" />
                             </div>
                         </div>
-
                         <Show when={submission.error}>
-                            <p class="text-sm text-error whitespace-pre-wrap">
-                                {submission.error.error || "Une erreur est survenue."}
-                                <Show when={submission.error.details}>
-                                    <ul>
-                                        {Object.entries(submission.error.details as Record<string, { _errors: string[] }>).map(([field, err]) => (
-                                            <Show when={err._errors.length > 0}>
-                                                <li>{field}: {err._errors.join(", ")}</li>
-                                            </Show>
-                                        ))}
-                                    </ul>
-                                </Show>
-                            </p>
+                            {(error) => (
+                                <div class="my-2 p-3 bg-error-container text-on-error-container rounded-md">
+                                    <p class="text-sm whitespace-pre-wrap">
+                                        {typeof error().error === 'string' ? error().error : (error().error?.message || "Une erreur est survenue.")}
+                                        <Show when={error().details && typeof error().details === 'object'}>
+                                            <ul class="mt-1 list-disc list-inside text-xs">
+                                                {Object.entries(error().details as Record<string, { _errors: string[] }>).map(([field, fieldErrors]) => (
+                                                    <Show when={fieldErrors?._errors?.length > 0}>
+                                                        <li>{field}: {fieldErrors._errors.join(", ")}</li>
+                                                    </Show>
+                                                ))}
+                                            </ul>
+                                        </Show>
+                                    </p>
+                                    <div class="mt-3 flex gap-2">
+                                        <button type="button" onClick={() => submission.retry()} class="px-3 py-1 text-sm bg-primary/80 text-on-primary rounded-md hover:bg-primary">Réessayer</button>
+                                        <button type="button" onClick={() => submission.clear()} class="px-3 py-1 text-sm bg-surface-variant text-on-surface-variant rounded-md hover:brightness-95">Effacer</button>
+                                    </div>
+                                </div>
+                            )}
                         </Show>
 
                         <button type="submit" disabled={submission.pending} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">

@@ -1,21 +1,31 @@
-import { type VoidComponent, createSignal, For, Show, createMemo } from "solid-js";
+import {
+  type VoidComponent,
+  createSignal,
+  For,
+  Show,
+  createMemo,
+  lazy,
+  Suspense,
+  onMount,
+  onCleanup
+} from "solid-js";
 import { Meta, Title } from "@solidjs/meta";
-import { createAsync } from "@solidjs/router";
+import { createAsync, useSubmissions, revalidate } from "@solidjs/router";
 import AddEventFAB from "~/components/AddEventFAB";
-import CreateEventModal from "~/components/CreateEventModal";
-import EventDetailModal from "~/components/EventDetailModal";
+const CreateEventModal = lazy(() => import("~/components/CreateEventModal"));
+const EventDetailModal = lazy(() => import("~/components/EventDetailModal"));
 import { getUpcomingEvents, type EventWithOrganizer } from "~/server/queries/eventQueries";
 import { getAuthSession } from "~/server/queries/sessionQueries";
-
+import { createEventAction } from "~/server/actions/eventActions";
 
 const Home: VoidComponent = () => {
   const sessionData = createAsync(() => getAuthSession());
   const eventsResource = createAsync(() => getUpcomingEvents());
+  const pendingEventSubmissions = useSubmissions(createEventAction);
 
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = createSignal(false);
   const [isEventDetailModalOpen, setIsEventDetailModalOpen] = createSignal(false);
   const [selectedEvent, setSelectedEvent] = createSignal<EventWithOrganizer | null>(null);
-
 
   const openEventDetails = (event: EventWithOrganizer) => {
     setSelectedEvent(event);
@@ -51,6 +61,22 @@ const Home: VoidComponent = () => {
     return !!user && (user.role === "ORGANIZER" || user.role === "ADMIN");
   });
 
+  const handleEventCreated = () => {
+  };
+
+  onMount(() => {
+    const POLLING_INTERVAL = 30000;
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        revalidate(getUpcomingEvents.key);
+      }
+    }, POLLING_INTERVAL);
+
+    onCleanup(() => {
+      clearInterval(intervalId);
+    });
+  });
+
   return (
     <>
       <Title>Ralvo</Title>
@@ -61,11 +87,24 @@ const Home: VoidComponent = () => {
             Événements à Venir
           </h1>
 
-          <Show when={eventsResource.loading}>
+          <For each={pendingEventSubmissions}>
+            {(submission) => (
+              <Show when={submission.pending && submission.input}>
+                <div class="my-4 p-3 bg-primary-container text-on-primary-container rounded-md text-center animate-pulse">
+                  Création de l'événement en cours:
+                  <Show when={(submission.input[0] as FormData)?.get('title') as string | undefined}>
+                    {title => ` "${title()}"...`}
+                  </Show>
+                </div>
+              </Show>
+            )}
+          </For>
+
+          <Show when={eventsResource.loading && !pendingEventSubmissions.some(s => s.pending)}>
             <p class="text-center text-lg text-on-surface-variant">Chargement des événements...</p>
           </Show>
 
-          <Show when={!eventsResource.loading && groupedEvents().length === 0}>
+          <Show when={!eventsResource.loading && groupedEvents().length === 0 && !pendingEventSubmissions.some(s => s.pending && s.input)}>
             <p class="text-center text-lg text-on-surface-variant">Aucun événement à venir pour le moment.</p>
           </Show>
 
@@ -100,15 +139,20 @@ const Home: VoidComponent = () => {
         </Show>
       </main>
 
-      <CreateEventModal
-        isOpen={isCreateEventModalOpen}
-        setIsOpen={setIsCreateEventModalOpen}
-      />
-      <EventDetailModal
-        isOpen={isEventDetailModalOpen}
-        setIsOpen={setIsEventDetailModalOpen}
-        event={selectedEvent}
-      />
+      <Suspense fallback={<div class="fixed inset-0 bg-scrim/30 flex items-center justify-center text-on-primary-container p-4 rounded">Chargement du modal...</div>}>
+        <CreateEventModal
+          isOpen={isCreateEventModalOpen}
+          setIsOpen={setIsCreateEventModalOpen}
+          onEventCreated={handleEventCreated}
+        />
+      </Suspense>
+      <Suspense fallback={<div class="fixed inset-0 bg-scrim/30 flex items-center justify-center text-on-primary-container p-4 rounded">Chargement des détails...</div>}>
+        <EventDetailModal
+          isOpen={isEventDetailModalOpen}
+          setIsOpen={setIsEventDetailModalOpen}
+          event={selectedEvent}
+        />
+      </Suspense>
     </>
   );
 };

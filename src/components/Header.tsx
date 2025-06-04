@@ -1,12 +1,22 @@
-import { Component, createSignal, onMount, Show, createEffect, createMemo } from "solid-js";
-import AuthModal from "./AuthModal";
+import {
+    Component,
+    createSignal,
+    onMount,
+    Show,
+    createEffect,
+    createMemo,
+    lazy,
+    Suspense
+} from "solid-js";
 import { A, revalidate } from "@solidjs/router";
-import BecomeOrganizerModal from "./BecomeOrganizerModal";
 import { signOut } from "@auth/solid-start/client";
 import { createAsync } from "@solidjs/router";
 import type { AuthStep } from "./AuthForm";
 import { getAuthSession } from "~/server/queries/sessionQueries";
 import type { Session } from "@auth/core/types";
+
+const AuthModal = lazy(() => import("./AuthModal"));
+const BecomeOrganizerModal = lazy(() => import("./BecomeOrganizerModal"));
 
 
 const Header: Component = () => {
@@ -16,8 +26,6 @@ const Header: Component = () => {
 
     const [isAuthModalOpen, setIsAuthModalOpen] = createSignal(false);
     const [authModalInitialStep, setAuthModalInitialStep] = createSignal<AuthStep>("INITIAL");
-
-
     const [isBecomeOrganizerModalOpen, setIsBecomeOrganizerModalOpen] = createSignal(false);
 
     const sessionAsync = createAsync(() => getAuthSession(), {
@@ -25,7 +33,6 @@ const Header: Component = () => {
         deferStream: true
     });
     const typedSession = createMemo(() => sessionAsync() as Session | null | undefined);
-
 
     const [isDarkMode, setIsDarkMode] = createSignal(false);
     const [contrastLevel, setContrastLevel] = createSignal<"default" | "mc" | "hc">("default");
@@ -123,7 +130,6 @@ const Header: Component = () => {
         if (!userSession.user.isTwoFactorAuthenticated) return "Veuillez vérifier votre session 2FA (reconnexion si besoin).";
         return "Devenir Organisateur";
     });
-
 
     return (
         <header class="fixed top-0 left-0 right-0 z-50 text-on-surface bg-surface">
@@ -232,8 +238,20 @@ const Header: Component = () => {
                     </Show>
                 </div>
             </div>
-            <AuthModal isOpen={isAuthModalOpen} setIsOpen={setIsAuthModalOpen} initialAuthStep={authModalInitialStep()} />
-            <BecomeOrganizerModal isOpen={isBecomeOrganizerModalOpen} setIsOpen={setIsBecomeOrganizerModalOpen} />
+
+            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
+                <AuthModal
+                    isOpen={isAuthModalOpen}
+                    setIsOpen={setIsAuthModalOpen}
+                    initialAuthStep={authModalInitialStep()}
+                />
+            </Suspense>
+            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
+                <BecomeOrganizerModal
+                    isOpen={isBecomeOrganizerModalOpen}
+                    setIsOpen={setIsBecomeOrganizerModalOpen}
+                />
+            </Suspense>
         </header>
     );
 };

@@ -13,9 +13,9 @@ const BecomeOrganizerForm: VoidComponent<{ onSuccess: () => void, closeModal: ()
     const submission = useSubmission(requestOrganizerRoleAction);
 
     createEffect(() => {
-        if (submission.result && !submission.pending && !submission.error) {
+        if (submission.result?.success && !submission.pending && !submission.error) {
             setTimeout(() => {
-                props.onSuccess();
+                props.onSuccess?.();
                 props.closeModal();
             }, 2000);
         }
@@ -40,12 +40,36 @@ const BecomeOrganizerForm: VoidComponent<{ onSuccess: () => void, closeModal: ()
                     onInput={(e) => setDetails(e.currentTarget.value)}
                 />
             </div>
-            <Show when={submission.result?.message && !submission.error}>
+            <Show when={submission.result?.success && !submission.error}>
                 <p class="text-green-500">{submission.result.message}</p>
             </Show>
+
             <Show when={submission.error}>
-                <p class="text-error">{submission.error.error || "Erreur lors de la soumission."}</p>
+                {(error) => (
+                    <div class="my-2 p-3 bg-error-container text-on-error-container rounded-md">
+                        <p class="text-sm">
+                            {typeof error().error === 'string' ? error().error : (error().error?.message || "Erreur lors de la soumission.")}
+                        </p>
+                        <div class="mt-3 flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => submission.retry()}
+                                class="px-3 py-1 text-sm bg-primary/80 text-on-primary rounded-md hover:bg-primary"
+                            >
+                                Réessayer
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { submission.clear(); }}
+                                class="px-3 py-1 text-sm bg-surface-variant text-on-surface-variant rounded-md hover:brightness-95"
+                            >
+                                Effacer
+                            </button>
+                        </div>
+                    </div>
+                )}
             </Show>
+
             <button type="submit" disabled={submission.pending} class="w-full rounded-md bg-primary px-4 py-2 text-on-primary hover:brightness-110 disabled:opacity-50">
                 {submission.pending ? "Envoi..." : "Soumettre la demande"}
             </button>
@@ -53,16 +77,13 @@ const BecomeOrganizerForm: VoidComponent<{ onSuccess: () => void, closeModal: ()
     );
 };
 
-
 const BecomeOrganizerModal: VoidComponent<BecomeOrganizerModalProps> = (props) => {
     const handleClose = () => {
         props.setIsOpen(false);
     };
 
     const handleSuccess = () => {
-        if (props.onSuccess) {
-            props.onSuccess();
-        }
+        props.onSuccess?.();
     };
 
     return (
