@@ -1,11 +1,12 @@
 import { Component, createSignal, onMount, Show, createEffect, createMemo } from "solid-js";
 import AuthModal from "./AuthModal";
-import { A } from "@solidjs/router";
+import { A, revalidate } from "@solidjs/router";
 import BecomeOrganizerModal from "./BecomeOrganizerModal";
 import { signOut } from "@auth/solid-start/client";
 import { createAsync } from "@solidjs/router";
 import type { AuthStep } from "./AuthForm";
 import { getAuthSession } from "~/server/queries/sessionQueries";
+import type { Session } from "@auth/core/types";
 
 
 const Header: Component = () => {
@@ -23,6 +24,7 @@ const Header: Component = () => {
         initialValue: undefined,
         deferStream: true
     });
+    const typedSession = createMemo(() => sessionAsync() as Session | null | undefined);
 
 
     const [isDarkMode, setIsDarkMode] = createSignal(false);
@@ -77,6 +79,7 @@ const Header: Component = () => {
     const handleSignOut = async () => {
         await signOut({ redirect: false });
         setMenuOpen(false);
+        revalidate(getAuthSession.key);
     };
 
     const openLoginModal = () => {
@@ -103,15 +106,19 @@ const Header: Component = () => {
     };
 
     const canBecomeOrganizer = createMemo(() => {
-        const userSession = sessionAsync();
+        const userSession = typedSession();
         if (!userSession?.user) return false;
-        return userSession.user.isGoogleUser || (userSession.user.twoFactorEnabled && userSession.user.isTwoFactorAuthenticated);
+        if (userSession.user.provider !== "credentials") return true;
+        return userSession.user.twoFactorEnabled && userSession.user.isTwoFactorAuthenticated;
     });
 
     const becomeOrganizerButtonTitle = createMemo(() => {
-        const userSession = sessionAsync();
+        const userSession = typedSession();
         if (!userSession?.user) return "Veuillez vous connecter.";
-        if (userSession.user.isGoogleUser) return "Devenir Organisateur";
+
+        if (userSession.user.provider !== "credentials") {
+            return "Devenir Organisateur";
+        }
         if (!userSession.user.twoFactorEnabled) return "Veuillez activer la 2FA pour devenir organisateur.";
         if (!userSession.user.isTwoFactorAuthenticated) return "Veuillez vérifier votre session 2FA (reconnexion si besoin).";
         return "Devenir Organisateur";
@@ -133,7 +140,7 @@ const Header: Component = () => {
                         onClick={() => setMenuOpen(!menuOpen())}
                     >
                         <Show
-                            when={!sessionAsync.loading && sessionAsync()?.user?.image}
+                            when={!sessionAsync.loading && typedSession()?.user?.image}
                             fallback={
                                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                                     <path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Zm80-80h480v-32q0-11-5.5-20T700-306q-54-27-109-40.5T480-360q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32Zm240-320q33 0 56.5-23.5T560-640q0-33-23.5-56.5T480-720q-33 0-56.5 23.5T400-640q0 33 23.5 56.5T480-560Zm0-80Zm0 400Z" />
@@ -141,7 +148,7 @@ const Header: Component = () => {
                             }
                         >
                             <img
-                                src={sessionAsync()?.user?.image!}
+                                src={typedSession()?.user?.image!}
                                 alt="Photo de profil"
                                 class="rounded-full w-8 h-8 object-cover"
                             />
@@ -155,7 +162,7 @@ const Header: Component = () => {
                         >
                             <ul class="text-on-surface-variant space-y-1">
                                 <Show
-                                    when={!sessionAsync.loading && sessionAsync()?.user}
+                                    when={!sessionAsync.loading && typedSession()?.user}
                                     fallback={
                                         <li>
                                             <button onClick={openLoginModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Connexion / Inscription</button>
@@ -163,16 +170,16 @@ const Header: Component = () => {
                                     }
                                 >
                                     <li class="px-3 py-2 text-sm text-on-surface-variant/70">
-                                        Connecté: {sessionAsync()?.user?.email}
+                                        Connecté: {typedSession()?.user?.email}
                                     </li>
 
-                                    <Show when={!sessionAsync()?.user?.isGoogleUser && !sessionAsync()?.user?.twoFactorEnabled}>
+                                    <Show when={typedSession()?.user?.provider === 'credentials' && !typedSession()?.user?.twoFactorEnabled}>
                                         <li>
                                             <button onClick={openActivate2FAModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Activer 2FA</button>
                                         </li>
                                     </Show>
 
-                                    <Show when={sessionAsync()?.user?.role === 'USER' || sessionAsync()?.user?.role === 'ORGANIZER'}>
+                                    <Show when={typedSession()?.user?.role === 'USER' || typedSession()?.user?.role === 'ORGANIZER'}>
                                         <li>
                                             <button
                                                 onClick={openBecomeOrganizerModal}
@@ -182,7 +189,7 @@ const Header: Component = () => {
                                             >
                                                 Devenir Organisateur
                                             </button>
-                                            <Show when={!canBecomeOrganizer() && sessionAsync()?.user && !sessionAsync()?.user.isGoogleUser && !session.user.twoFactorEnabled}>
+                                            <Show when={!canBecomeOrganizer() && typedSession()?.user && typedSession()?.user?.provider === 'credentials' && !typedSession()?.user?.twoFactorEnabled}>
                                                 <p class="px-3 pt-0 pb-1 text-xs text-on-surface-variant/70">
                                                     (2FA requise pour devenir organisateur)
                                                 </p>

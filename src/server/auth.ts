@@ -2,11 +2,10 @@ import { type SolidAuthConfig } from "@auth/solid-start";
 import Google from "@auth/solid-start/providers/google";
 import CredentialsProvider from "@auth/solid-start/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { serverEnv } from "~/env/server";
 import { db } from "~/lib/db";
 import bcrypt from "bcryptjs";
 import { authenticator } from "otplib";
-import type { User as AuthUser } from "@auth/core/types";
+import type { User as AuthUser, Account } from "@auth/core/types";
 
 declare module "@auth/core/types" {
     interface Session {
@@ -15,7 +14,7 @@ declare module "@auth/core/types" {
             role: string;
             twoFactorEnabled: boolean;
             isTwoFactorAuthenticated: boolean;
-            isGoogleUser?: boolean;
+            provider?: string;
         } & Omit<AuthUser, "id">;
     }
     interface User {
@@ -23,7 +22,6 @@ declare module "@auth/core/types" {
         role?: string | null;
         twoFactorEnabled?: boolean | null;
         _isTwoFactorAuthenticatedThisFlow?: boolean;
-        isGoogleUser?: boolean;
     }
 }
 
@@ -33,7 +31,7 @@ declare module "@auth/core/jwt" {
         role?: string;
         twoFactorEnabled?: boolean;
         isTwoFactorAuthenticated?: boolean;
-        isGoogleUser?: boolean;
+        provider?: string;
     }
 }
 
@@ -43,8 +41,8 @@ export const authOptions: SolidAuthConfig = {
     trustHost: true,
     providers: [
         Google({
-            clientId: serverEnv.GOOGLE_CLIENT_ID!,
-            clientSecret: serverEnv.GOOGLE_CLIENT_SECRET!,
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
             async profile(profile) {
                 const dbUser = await db.user.findUnique({ where: { email: profile.email } });
                 return {
@@ -54,7 +52,6 @@ export const authOptions: SolidAuthConfig = {
                     image: profile.picture,
                     role: dbUser?.role ?? 'USER',
                     twoFactorEnabled: dbUser?.twoFactorEnabled ?? false,
-                    isGoogleUser: true,
                 };
             },
         }),
@@ -94,7 +91,6 @@ export const authOptions: SolidAuthConfig = {
                     role: user.role,
                     twoFactorEnabled: user.twoFactorEnabled,
                     _isTwoFactorAuthenticatedThisFlow: isTwoFactorAuthenticatedForThisSignIn,
-                    isGoogleUser: false,
                 };
             },
         }),
@@ -104,16 +100,16 @@ export const authOptions: SolidAuthConfig = {
     },
     callbacks: {
         async jwt({ token, user, account, trigger, session }) {
-            if (user) {
+            if (user && account) {
                 token.id = user.id;
                 token.role = user.role;
                 token.name = user.name;
                 token.email = user.email;
                 token.picture = user.image;
                 token.twoFactorEnabled = !!user.twoFactorEnabled;
-                token.isGoogleUser = !!user.isGoogleUser;
+                token.provider = account.provider;
 
-                if (user.isGoogleUser) {
+                if (account.provider !== "credentials") {
                     token.isTwoFactorAuthenticated = true;
                     const dbUser = await db.user.findUnique({ where: { id: user.id } });
                     if (dbUser) {
@@ -126,15 +122,15 @@ export const authOptions: SolidAuthConfig = {
             }
 
             if (trigger === "update" && session) {
-                if (session.action === "USER_UPDATED_2FA_STATUS") {
+                if ((session as any).action === "USER_UPDATED_2FA_STATUS") {
                     const dbUser = await db.user.findUnique({ where: { id: token.id as string } });
                     if (dbUser) {
                         token.twoFactorEnabled = dbUser.twoFactorEnabled;
                         token.isTwoFactorAuthenticated = !dbUser.twoFactorEnabled;
                     }
                 }
-                if (session.action === "USER_ROLE_UPDATED" && session.role) {
-                    token.role = session.role;
+                if ((session as any).action === "USER_ROLE_UPDATED" && (session as any).role) {
+                    token.role = (session as any).role;
                 }
             }
             return token;
@@ -144,12 +140,12 @@ export const authOptions: SolidAuthConfig = {
             if (token.role) session.user.role = token.role as string;
             session.user.twoFactorEnabled = !!token.twoFactorEnabled;
             session.user.isTwoFactorAuthenticated = !!token.isTwoFactorAuthenticated;
-            session.user.isGoogleUser = !!token.isGoogleUser;
+            if (token.provider) session.user.provider = token.provider as string;
             if (token.name) session.user.name = token.name;
             if (token.email) session.user.email = token.email;
-            if (token.picture) session.user.image = token.picture;
+            if (token.picture) session.user.image = token.picture as string | null | undefined;
             return session;
         },
     },
-    debug: serverEnv.NODE_ENV === "development",
+    debug: process.env.NODE_ENV === "development",
 };
