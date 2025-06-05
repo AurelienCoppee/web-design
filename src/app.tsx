@@ -11,6 +11,9 @@ export default function App() {
       <Router
         root={props => (
           <>
+            <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-1/2 focus:translate-x-[-50%] focus:z-[999] focus:p-3 focus:bg-primary focus:text-on-primary focus:rounded-mat-corner-medium">
+              Aller au contenu principal
+            </a>
             <Header />
             <Suspense>{props.children}</Suspense>
           </>

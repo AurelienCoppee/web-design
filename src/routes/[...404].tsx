@@ -1,11 +1,12 @@
 import { A } from "@solidjs/router";
-import { Meta, Title } from "@solidjs/meta";
+import { Meta, Title, Link } from "@solidjs/meta";
 
 export default function NotFound() {
   return (
     <>
       <Title>Page Non Trouvée - Ralvo</Title>
       <Meta name="description" content="La page que vous recherchez n'a pas été trouvée sur Ralvo." />
+      <Link rel="canonical" href="https://ralvo.be/404" />
       <main class="text-center mx-auto text-on-surface p-4 pt-24 md:pt-28 min-h-screen flex flex-col justify-center items-center bg-surface">
         <h1 class="text-display-small sm:text-display-medium md:text-display-large text-primary font-bold uppercase my-8">
           404
