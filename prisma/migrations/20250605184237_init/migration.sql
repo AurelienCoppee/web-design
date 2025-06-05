@@ -32,7 +32,7 @@ CREATE TABLE "users" (
     "email_verified" DATETIME,
     "hashedPassword" TEXT,
     "twoFactorSecret" TEXT,
-    "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "twoFactorEnabled" BOOLEAN DEFAULT false,
     "image" TEXT,
     "role" TEXT NOT NULL DEFAULT 'USER'
 );
@@ -79,7 +79,6 @@ CREATE TABLE "OrganizationRequests" (
 CREATE TABLE "organizations" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
-    "creatorId" TEXT NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -93,6 +92,16 @@ CREATE TABLE "organization_memberships" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "organization_memberships_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "organization_memberships_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "UserEventInterest" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "eventId" TEXT NOT NULL,
+    "eventDate" DATETIME NOT NULL,
+    CONSTRAINT "UserEventInterest_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "UserEventInterest_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateIndex
@@ -118,3 +127,12 @@ CREATE UNIQUE INDEX "organizations_name_key" ON "organizations"("name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "organization_memberships_organizationId_userId_key" ON "organization_memberships"("organizationId", "userId");
+
+-- CreateIndex
+CREATE INDEX "UserEventInterest_eventId_idx" ON "UserEventInterest"("eventId");
+
+-- CreateIndex
+CREATE INDEX "UserEventInterest_userId_idx" ON "UserEventInterest"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserEventInterest_userId_eventDate_key" ON "UserEventInterest"("userId", "eventDate");

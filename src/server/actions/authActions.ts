@@ -73,7 +73,7 @@ export const startAuthFlowAction = action(async (input: z.infer<typeof emailPass
         } else {
             return json(
                 {
-                    status: "LOGIN_SUCCESS_PROMPT_2FA_SETUP",
+                    status: "LOGIN_SUCCESS_NO_PROMPT_NEEDED",
                     message: "Connexion réussie. Voulez-vous configurer l'A2F maintenant ?",
                     email: user.email,
                 },

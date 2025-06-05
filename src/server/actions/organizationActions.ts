@@ -88,10 +88,6 @@ export const approveOrganizationRequestAction = action(async (formData: FormData
         const organization = await db.organizations.create({
             data: {
                 name: request.name,
-                memberCount: request.memberCount,
-                pastEventsLinks: request.pastEventsLinks,
-                legalStatus: request.legalStatus,
-                creatorId: request.userId,
             },
         });
 

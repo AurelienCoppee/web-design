@@ -22,8 +22,6 @@ const LoginSignupModal: VoidComponent<LoginSignupModalProps> = (props) => {
     const [emailVerificationCode, setEmailVerificationCode] = createSignal("");
 
     const [step, setStep] = createSignal<LoginSignupStep>("EMAIL_PASSWORD_INPUT");
-    const [errorMessage, setErrorMessage] = createSignal("");
-    const [infoMessage, setInfoMessage] = createSignal("");
 
     const execStartAuthFlow = useAction(startAuthFlowAction);
     const execCreateUser = useAction(createUserAction);
@@ -39,67 +37,50 @@ const LoginSignupModal: VoidComponent<LoginSignupModalProps> = (props) => {
             setConfirmPassword("");
             setEmailVerificationCode("");
             setStep("EMAIL_PASSWORD_INPUT");
-            setErrorMessage("");
-            setInfoMessage("");
             initialFormSubmission.clear();
             signupConfirmSubmission.clear();
         }
     });
 
-    createEffect(() => {
-        let msg = "";
-        const getErrorMsg = (actionError: any) => {
-            if (!actionError) return "";
-            if (typeof actionError.error === 'string') return actionError.error;
-            if (actionError.error?.message) return actionError.error.message;
-            if (actionError.error?.details) {
-                const details = actionError.error.details;
-                return Object.values(details as Record<string, { _errors: string[] }>)
-                    .map(fieldErrors => fieldErrors._errors.join(", "))
-                    .join("; ") || "Erreur de validation.";
-            }
-            return "Une erreur est survenue.";
-        };
-
-        if (initialFormSubmission.error) msg = getErrorMsg(initialFormSubmission.error);
-        else if (signupConfirmSubmission.error) msg = getErrorMsg(signupConfirmSubmission.error);
-        setErrorMessage(msg);
-    });
-
 
     const handleInitialSubmit = async (e: SubmitEvent) => {
         e.preventDefault();
-        setErrorMessage("");
-        setInfoMessage("");
         setFirstPasswordAttempt(password());
 
         const result = await execStartAuthFlow({ email: email(), password: password() });
 
         if (result?.error) {
-            setErrorMessage(result.error.message || result.error.details || result.error);
             return;
         }
 
         if (result?.email) setEmail(result.email);
 
         if (result?.status === "NEW_USER_CONFIRM_PASSWORD") {
-            setInfoMessage(result.message);
             setStep("SIGNUP_DETAILS_CONFIRM");
         } else if (result?.status === "LOGIN_SUCCESS_PROMPT_2FA_SETUP") {
-            setInfoMessage(result.message);
             setStep("PROMPT_INITIAL_2FA");
+        } else if (result?.status === "LOGIN_SUCCESS_NO_PROMPT_NEEDED") {
+            const signInResult = await signIn("credentials", {
+                redirect: false,
+                email: email(),
+                password: password(),
+            });
+            if (!signInResult?.ok || signInResult?.error) {
+                setPassword("");
+            } else {
+                revalidate(getAuthSession.key);
+                props.onSuccess();
+                props.setIsOpen(false);
+            }
         } else if (result?.status === "2FA_REQUIRED") {
             props.onRequire2FA(email(), password());
             props.setIsOpen(false);
         } else {
-            setErrorMessage("Réponse inattendue du serveur.");
         }
     };
 
     const handleSignupConfirmSubmit = async (e: SubmitEvent) => {
         e.preventDefault();
-        setErrorMessage("");
-        setInfoMessage("");
 
         const result = await execCreateUser({
             email: email(),
@@ -109,30 +90,22 @@ const LoginSignupModal: VoidComponent<LoginSignupModalProps> = (props) => {
         });
 
         if (result?.error) {
-            setErrorMessage(result.error.message || result.error.details || result.error);
             return;
         }
 
         if (result?.status === "SIGNUP_SUCCESS_PROMPT_2FA_SETUP") {
-            setInfoMessage(result.message);
             setPassword(firstPasswordAttempt());
             setStep("PROMPT_INITIAL_2FA");
-        } else {
-            setErrorMessage("Réponse inattendue après la création du compte.");
         }
     };
 
     const handleGoogleSignIn = async () => {
-        setErrorMessage("");
-        setInfoMessage("Redirection vers Google...");
         try {
             await signIn("google", { callbackUrl: window.location.pathname });
             props.onSuccess();
             props.setIsOpen(false);
         } catch (e: any) {
             console.error("Google Sign-In error:", e);
-            setErrorMessage(e.message || "Une erreur s'est produite lors de la connexion avec Google.");
-            setInfoMessage("");
         }
     };
 
@@ -141,17 +114,14 @@ const LoginSignupModal: VoidComponent<LoginSignupModalProps> = (props) => {
             props.onPrompt2FA(email(), password());
             props.setIsOpen(false);
         } else {
-            setInfoMessage("Connexion en cours...");
             const result = await signIn("credentials", {
                 redirect: false,
                 email: email(),
                 password: password(),
             });
             if (!result?.ok || result?.error) {
-                setErrorMessage(result?.error || "Erreur de connexion. Veuillez vérifier vos identifiants."); //
                 setPassword("");
             } else {
-                setInfoMessage("Connexion réussie!");
                 revalidate(getAuthSession.key);
                 props.onSuccess();
                 props.setIsOpen(false);
@@ -206,7 +176,6 @@ const LoginSignupModal: VoidComponent<LoginSignupModalProps> = (props) => {
                     <Show when={step() === "SIGNUP_DETAILS_CONFIRM"}>
                         <form onSubmit={handleSignupConfirmSubmit} class="space-y-4">
                             <h2 class="text-2xl font-bold text-on-surface">Finaliser l'inscription</h2>
-                            <p class="text-on-surface-variant">{infoMessage()}</p>
                             <div>
                                 <label for="email-confirm" class="block text-sm font-medium text-on-surface-variant">Email</label>
                                 <input type="email" id="email-confirm" value={email()} readOnly class="mt-1 block w-full rounded-md border-outline bg-surface-container-low text-on-surface shadow-sm" />
@@ -232,7 +201,6 @@ const LoginSignupModal: VoidComponent<LoginSignupModalProps> = (props) => {
                     <Show when={step() === "PROMPT_INITIAL_2FA"}>
                         <div class="space-y-4 text-center">
                             <h2 class="text-xl font-semibold text-on-surface">Authentification à Deux Facteurs</h2>
-                            <p class="text-on-surface-variant">{infoMessage()}</p>
                             <p class="text-sm text-on-surface-variant">Nous recommandons d'activer l'authentification à deux facteurs pour sécuriser votre compte.</p>
                             <div class="flex flex-col sm:flex-row gap-3 pt-2">
                                 <button onClick={() => handle2FAPromptChoice(true)} class="flex-1 rounded-full bg-primary px-4 py-2.5 text-on-primary hover:brightness-110">
