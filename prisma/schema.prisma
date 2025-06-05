@@ -44,20 +44,21 @@ model Session {
 }
 
 model User {
-  id               String    @id @default(cuid())
-  name             String?
-  email            String?   @unique
-  emailVerified    DateTime? @map("email_verified")
-  hashedPassword   String?
-  twoFactorSecret  String?
-  twoFactorEnabled Boolean   @default(false)
-  image            String?
-  role             Role      @default(USER)
+  id                          String    @id @default(cuid())
+  name                        String?
+  email                       String?   @unique
+  emailVerified               DateTime? @map("email_verified")
+  hashedPassword              String?
+  twoFactorSecret             String?
+  twoFactorEnabled            Boolean?  @default(false)
+  image                       String?
+  role                        Role      @default(USER)
 
-  accounts                Account[]
-  sessions                Session[]
-  organizationMemberships OrganizationMemberships[] @relation("UserMemberships")
-  organizationRequests    OrganizationRequests[]    @relation("UserRequests")
+  accounts                  Account[]
+  sessions                  Session[]
+  organizationMemberships     OrganizationMembership[] @relation("UserMemberships")
+  createdOrganizationRequests OrganizationRequest[] @relation("UserRequests")
+  eventInterests              UserEventInterest[]     @relation("UserInterests")
 
   @@map("users")
 }
@@ -72,65 +73,81 @@ model VerificationToken {
 }
 
 model Event {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  date        DateTime
-  address     String
-  city        String
-  region      String
-  lat         Float
-  lng         Float
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String    @id @default(cuid())
+  title          String
+  description    String
+  date           DateTime
+  address        String
+  city           String
+  region         String
+  lat            Float
+  lng            Float
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   organizationId String?
-  organization   Organizations? @relation("OrganizationEvents", fields: [organizationId], references: [id], onDelete: SetNull) // Reste optionnel, onDelete: SetNull
+  organization   Organization? @relation("OrganizationEvents", fields: [organizationId], references: [id], onDelete: SetNull)
+
+  interestedUsers UserEventInterest[] @relation("EventInterests")
 
   @@index([organizationId])
 }
 
-model OrganizationRequests {
-  id              String        @id @default(cuid())
+model OrganizationRequest {
+  id              String   @id @default(cuid())
   userId          String
   name            String
   memberCount     Int
   pastEventsLinks String?
   legalStatus     String?
   status          RequestStatus @default(PENDING)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  user User @relation("UserRequests", fields: [userId], references: [id], onDelete: Cascade) // La relation à User est maintenue
+  user User @relation("UserRequests", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@map("OrganizationRequests")
 }
 
-model Organizations {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  creatorId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Organization {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  memberships OrganizationMemberships[] @relation("OrganizationMembers")
-  events      Event[]                   @relation("OrganizationEvents")
+  members OrganizationMembership[] @relation("OrganizationMembers")
+  events  Event[]                  @relation("OrganizationEvents")
 
   @@map("organizations")
 }
 
-model OrganizationMemberships {
+model OrganizationMembership {
   id             String   @id @default(cuid())
   organizationId String
   userId         String
   role           OrgRole  @default(MEMBER)
   createdAt      DateTime @default(now())
 
-  organization Organizations @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User          @relation("UserMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("UserMemberships", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, userId])
   @@map("organization_memberships")
+}
+
+model UserEventInterest {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  eventDate DateTime
+
+  user  User  @relation("UserInterests", fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation("EventInterests", fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventDate], name: "UserEventInterest_userId_eventDate_key")
+  @@index([eventId])
+  @@index([userId])
 }
 
 enum Role {

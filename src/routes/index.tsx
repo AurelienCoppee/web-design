@@ -7,16 +7,19 @@ import {
   lazy,
   Suspense,
   onMount,
-  onCleanup
+  onCleanup,
+  createResource
 } from "solid-js";
 import { Meta, Title } from "@solidjs/meta";
-import { createAsync, useSubmissions, revalidate } from "@solidjs/router";
+import { createAsync, useSubmissions, revalidate, useSubmission } from "@solidjs/router";
 import AddEventFAB from "~/components/AddEventFAB";
 const CreateEventModal = lazy(() => import("~/components/modal/CreateEventModal"));
 const EventDetailModal = lazy(() => import("~/components/modal/EventDetailModal"));
 import { getUpcomingEvents, type EventWithDetails } from "~/server/queries/eventQueries";
 import { getAuthSession } from "~/server/queries/sessionQueries";
 import { createEventAction } from "~/server/actions/eventActions";
+import { markEventInterestAction, removeEventInterestAction } from "~/server/actions/userEventInterestActions";
+import { getMyEventInterests, getInterestedOrgMembersForEvent, getEventInterestCountForUser, getUserInterestsForDay } from "~/server/queries/userEventInterestQueries";
 
 const Home: VoidComponent = () => {
   const sessionData = createAsync(() => getAuthSession());
@@ -83,6 +86,62 @@ const Home: VoidComponent = () => {
     });
   });
 
+  const [myInterests, { refetch: refetchMyInterests }] = createResource(
+    () => sessionData()?.user?.id,
+    (userId) => userId ? getMyEventInterests(userId) : Promise.resolve([])
+  );
+
+  const isInterestedInEvent = (eventId: string) => {
+    return myInterests()?.some(interest => interest.eventId === eventId);
+  };
+
+  const eventInterestActionSubmission = useSubmission(markEventInterestAction);
+  const removeInterestActionSubmission = useSubmission(removeEventInterestAction);
+  const isProcessingInterest = (eventId: string) => {
+    return (eventInterestActionSubmission.pending && eventInterestActionSubmission.input?.get('eventId') === eventId) ||
+      (removeInterestActionSubmission.pending && removeInterestActionSubmission.input?.get('eventId') === eventId);
+  };
+
+  const handleInterestToggle = async (event: EventWithDetails) => {
+    if (!sessionData()?.user?.id) return;
+
+    const formData = new FormData();
+    formData.append("eventId", event.id);
+
+    const eventDateStr = event.date.toISOString().split('T')[0];
+    const interestOnDay = await getUserInterestsForDay(sessionData()!.user!.id, eventDateStr);
+
+
+    if (isInterestedInEvent(event.id)) {
+      await removeEventInterestAction(formData);
+    } else {
+      if (interestOnDay && interestOnDay.eventId !== event.id) {
+
+      }
+      await markEventInterestAction(formData);
+    }
+    refetchMyInterests();
+  };
+
+
+  // ... in the event card/loop
+  // <For each={eventsOnDate}>
+  //   {(event) => (
+  //     <div> ...
+  //       <Show when={sessionData()?.user}>
+  //         <button
+  //           onClick={() => handleInterestToggle(event)}
+  //           disabled={isProcessingInterest(event.id)}
+  //           class="..." // Style based on isInterestedInEvent(event.id)
+  //         >
+  //           {isProcessingInterest(event.id) ? '...' : (isInterestedInEvent(event.id) ? "Ne plus être intéressé" : "Je suis intéressé")}
+  //         </button>
+  //       </Show>
+  //     </div>
+  //   )}
+  // </For>
+  // ...
+
   return (
     <>
       <Title>Ralvo</Title>
@@ -113,7 +172,6 @@ const Home: VoidComponent = () => {
           <Show when={!eventsResource.loading && groupedEvents().length === 0 && !pendingEventSubmissions.some(s => s.pending && s.input)}>
             <p class="text-center text-lg text-on-surface-variant">Aucun événement à venir pour le moment.</p>
           </Show>
-
           <For each={groupedEvents()}>
             {([date, eventsOnDate]) => (
               <div class="mb-8">
@@ -122,20 +180,52 @@ const Home: VoidComponent = () => {
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <For each={eventsOnDate}>
-                    {(event) => (
-                      <div
-                        class="bg-surface-container rounded-lg shadow-mat-level1 p-5 cursor-pointer hover:shadow-mat-level3 transition-shadow"
-                        onClick={() => openEventDetails(event)}
-                      >
-                        <h3 class="text-xl font-semibold text-on-surface-variant mb-1">{event.title}</h3>
-                        <p class="text-sm text-primary mb-2">{formatTime(event.date)}</p>
-                        <Show when={event.organization}>
-                          <p class="text-xs text-tertiary mb-1">Par: {event.organization!.name}</p>
-                        </Show>
-                        <p class="text-sm text-on-surface-variant mb-1">{event.city}, {event.region}</p>
-                        <p class="text-xs text-on-surface-variant/70 line-clamp-2">{event.description}</p>
-                      </div>
-                    )}
+                    {(event) => {
+                      const [interestCount, { refetch: refetchCount }] = createResource(() => event.id, getEventInterestCountForUser);
+                      createEffect(() => {
+                        if ((eventInterestActionSubmission.result || removeInterestActionSubmission.result) &&
+                          (eventInterestActionSubmission.input?.get('eventId') === event.id || removeInterestActionSubmission.input?.get('eventId') === event.id)) {
+                          refetchCount();
+                        }
+                      });
+
+                      return (
+                        <div class="bg-surface-container rounded-lg shadow-mat-level1 p-5 flex flex-col justify-between">
+                          <div>
+                            <div
+                              class="cursor-pointer hover:shadow-mat-level3 transition-shadow"
+                              onClick={() => openEventDetails(event)}
+                            >
+                              <h3 class="text-xl font-semibold text-on-surface-variant mb-1">{event.title}</h3>
+                              <p class="text-sm text-primary mb-2">{formatTime(event.date)}</p>
+                              <Show when={event.organization}>
+                                <p class="text-xs text-tertiary mb-1">Par: {event.organization!.name}</p>
+                              </Show>
+                              <p class="text-sm text-on-surface-variant mb-1">{event.city}, {event.region}</p>
+                              <p class="text-xs text-on-surface-variant/70 line-clamp-2">{event.description}</p>
+                            </div>
+                            <Show when={sessionData()?.user?.id && event.organizationId && sessionData()?.user?.administeredOrganizations?.some(org => org.id === event.organizationId)}>
+                              <p class="text-xs text-on-surface-variant mt-2">Personnes intéressées : {interestCount() ?? 'Chargement...'}</p>
+                            </Show>
+                          </div>
+                          <Show when={sessionData()?.user}>
+                            <button
+                              onClick={() => handleInterestToggle(event)}
+                              disabled={isProcessingInterest(event.id)}
+                              class={`mt-3 w-full py-2 px-3 rounded-md text-sm font-medium transition-colors
+                                                        ${isInterestedInEvent(event.id)
+                                  ? 'bg-secondary-container text-on-secondary-container hover:brightness-95'
+                                  : 'bg-primary text-on-primary hover:brightness-110'
+                                } disabled:opacity-50`}
+                            >
+                              {isProcessingInterest(event.id)
+                                ? <span class="animate-pulse">Mise à jour...</span>
+                                : (isInterestedInEvent(event.id) ? "Ne plus être intéressé" : "Je suis intéressé")}
+                            </button>
+                          </Show>
+                        </div>
+                      );
+                    }}
                   </For>
                 </div>
               </div>

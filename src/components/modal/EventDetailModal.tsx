@@ -1,13 +1,53 @@
-import { Show, type VoidComponent, Setter, Accessor } from "solid-js";
-import type { Event as EventType } from "@prisma/client";
+import { Show, type VoidComponent, Setter, Accessor, For, createResource, createMemo } from "solid-js";
+import { createAsync } from "@solidjs/router";
+import type { Event as EventTypePrisma } from "@prisma/client";
+import { getAuthSession } from "~/server/queries/sessionQueries";
+import { getInterestedOrgMembersForEvent, getEventInterestCountForUser, type InterestedUserForEvent } from "~/server/queries/userEventInterestQueries";
+import type { EventWithDetails } from "~/server/queries/eventQueries";
+
 
 interface EventDetailModalProps {
     isOpen: Accessor<boolean>;
     setIsOpen: Setter<boolean>;
-    event: Accessor<EventType | null>;
+    event: Accessor<EventWithDetails | null>;
 }
 
 const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
+    const sessionData = createAsync(() => getAuthSession());
+
+    const [interestCount, { refetch: refetchCount }] = createResource(
+        () => props.event()?.id,
+        (eventId) => eventId ? getEventInterestCountForUser(eventId) : Promise.resolve(0)
+    );
+
+    const currentUserOrgIds = createMemo(() => {
+        const user = sessionData()?.user;
+        if (!user || !user.organizationMemberships) return [];
+        return user.organizationMemberships.map((mem: any) => mem.organizationId);
+    });
+
+
+    const [interestedOrgMembers, { refetch: refetchOrgMembers }] = createResource(
+        () => {
+            const ev = props.event();
+            const user = sessionData()?.user;
+            if (!ev?.organizationId || !user?.id) return null;
+            const userIsMemberOfEventOrg = user.organizationMemberships?.some((m: any) => m.organizationId === ev.organizationId);
+            if (!userIsMemberOfEventOrg) return null;
+
+            return { eventId: ev.id, organizationId: ev.organizationId };
+        },
+        (params) => params ? getInterestedOrgMembersForEvent(params.eventId, params.organizationId) : Promise.resolve([])
+    );
+
+    const isCurrentUserAdminOfEventOrg = createMemo(() => {
+        const ev = props.event();
+        const user = sessionData()?.user;
+        if (!ev?.organizationId || !user?.id || !user.administeredOrganizations) return false;
+        return user.administeredOrganizations.some(org => org.id === ev.organizationId);
+    });
+
+
     const handleClose = () => {
         props.setIsOpen(false);
     };
@@ -33,7 +73,9 @@ const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
                             </svg>
                         </button>
                         <h2 class="text-3xl font-bold text-on-surface mb-2">{currentEvent.title}</h2>
-                        <p class="text-sm text-on-surface-variant mb-4">Organisé par : {currentEvent.organizer?.name || currentEvent.organizer?.email || 'N/A'}</p>
+                        <p class="text-sm text-on-surface-variant mb-4">
+                            Organisé par : {currentEvent.organization?.name || currentEvent.organizer?.name || currentEvent.organizer?.email || 'N/A'}
+                        </p>
 
                         <div class="space-y-3 text-on-surface-variant">
                             <p><strong class="text-on-surface">Date:</strong> {formatDate(currentEvent.date)}</p>
@@ -57,6 +99,28 @@ const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
                                         <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
                                     </svg>
                                 </a>
+                            </div>
+                        </Show>
+
+                        <Show when={isCurrentUserAdminOfEventOrg()}>
+                            <div class="mt-4 pt-4 border-t border-outline-variant">
+                                <h4 class="text-md font-semibold text-on-surface mb-1">Intérêt (Organisateur)</h4>
+                                <p class="text-sm text-on-surface-variant">
+                                    Nombre de personnes intéressées : {interestCount.loading ? 'Chargement...' : interestCount() ?? 0}
+                                </p>
+                            </div>
+                        </Show>
+
+                        <Show when={interestedOrgMembers() && interestedOrgMembers()!.length > 0 && !isCurrentUserAdminOfEventOrg() && currentEvent.organizationId && currentUserOrgIds().includes(currentEvent.organizationId)}>
+                            <div class="mt-4 pt-4 border-t border-outline-variant">
+                                <h4 class="text-md font-semibold text-on-surface mb-1">Membres de votre organisation intéressés :</h4>
+                                <ul class="list-disc list-inside text-sm text-on-surface-variant">
+                                    <For each={interestedOrgMembers()}>
+                                        {(member: InterestedUserForEvent) => (
+                                            <li>{member.name || member.email}</li>
+                                        )}
+                                    </For>
+                                </ul>
                             </div>
                         </Show>
                     </div>
