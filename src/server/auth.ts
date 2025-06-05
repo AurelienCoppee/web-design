@@ -6,6 +6,7 @@ import { db } from "~/lib/db";
 import bcrypt from "bcryptjs";
 import { authenticator } from "otplib";
 import type { User as AuthUser, Account } from "@auth/core/types";
+import type { Organization } from "@prisma/client";
 
 declare module "@auth/core/types" {
     interface Session {
@@ -15,6 +16,7 @@ declare module "@auth/core/types" {
             twoFactorEnabled: boolean;
             isTwoFactorAuthenticated: boolean;
             provider?: string;
+            administeredOrganizations?: Pick<Organization, 'id' | 'name'>[];
         } & Omit<AuthUser, "id">;
     }
     interface User {
@@ -32,6 +34,7 @@ declare module "@auth/core/jwt" {
         twoFactorEnabled?: boolean;
         isTwoFactorAuthenticated?: boolean;
         provider?: string;
+        administeredOrganizations?: Pick<Organization, 'id' | 'name'>[];
     }
 }
 
@@ -99,7 +102,7 @@ export const authOptions: SolidAuthConfig = {
         strategy: "jwt",
     },
     callbacks: {
-        async jwt({ token, user, account, trigger, session }) {
+        async jwt({ token, user, account, trigger, session: updateSessionData }) {
             if (user && account) {
                 token.id = user.id;
                 token.role = user.role;
@@ -108,6 +111,13 @@ export const authOptions: SolidAuthConfig = {
                 token.picture = user.image;
                 token.twoFactorEnabled = !!user.twoFactorEnabled;
                 token.provider = account.provider;
+
+                const adminMemberships = await db.organizationMemberships.findMany({
+                    where: { userId: user.id, role: 'ADMIN' },
+                    include: { organization: { select: { id: true, name: true } } }
+                });
+                token.administeredOrganizations = adminMemberships.map(m => m.organization);
+
 
                 if (account.provider !== "credentials") {
                     token.isTwoFactorAuthenticated = true;
@@ -121,16 +131,23 @@ export const authOptions: SolidAuthConfig = {
                 }
             }
 
-            if (trigger === "update" && session) {
-                if ((session as any).action === "USER_UPDATED_2FA_STATUS") {
+            if (trigger === "update" && updateSessionData) {
+                if ((updateSessionData as any).action === "USER_UPDATED_2FA_STATUS") {
                     const dbUser = await db.user.findUnique({ where: { id: token.id as string } });
                     if (dbUser) {
                         token.twoFactorEnabled = dbUser.twoFactorEnabled;
-                        token.isTwoFactorAuthenticated = !dbUser.twoFactorEnabled;
+                        token.isTwoFactorAuthenticated = !dbUser.twoFactorEnabled || token.provider !== "credentials";
                     }
                 }
-                if ((session as any).action === "USER_ROLE_UPDATED" && (session as any).role) {
-                    token.role = (session as any).role;
+                if ((updateSessionData as any).action === "USER_ROLE_UPDATED" && (updateSessionData as any).role) {
+                    token.role = (updateSessionData as any).role;
+                }
+                if ((updateSessionData as any).action === "USER_ORGANIZATION_MEMBERSHIP_UPDATED") {
+                    const adminMemberships = await db.organizationMemberships.findMany({
+                        where: { userId: token.id as string, role: 'ADMIN' },
+                        include: { organization: { select: { id: true, name: true } } }
+                    });
+                    token.administeredOrganizations = adminMemberships.map(m => m.organization);
                 }
             }
             return token;
@@ -144,6 +161,7 @@ export const authOptions: SolidAuthConfig = {
             if (token.name) session.user.name = token.name;
             if (token.email) session.user.email = token.email;
             if (token.picture) session.user.image = token.picture as string | null | undefined;
+            session.user.administeredOrganizations = token.administeredOrganizations || [];
             return session;
         },
     },

@@ -16,7 +16,9 @@ import type { Session } from "@auth/core/types";
 
 const LoginSignupModal = lazy(() => import("./modal/LoginSignupModal"));
 const TwoFactorAuthModal = lazy(() => import("./modal/TwoFactorAuthModal"));
-const BecomeOrganizerModal = lazy(() => import("./modal/BecomeOrganizerModal"));
+const CreateOrganizationModal = lazy(() => import("./modal/CreateOrganizationModal"));
+const AdminRequestsModal = lazy(() => import("./modal/AdminRequestsModal"));
+const ManageOrganizationModal = lazy(() => import("./modal/ManageOrganizationModal"));
 
 
 const Header: Component = () => {
@@ -29,7 +31,11 @@ const Header: Component = () => {
     const [twoFactorModalMode, setTwoFactorModalMode] = createSignal<"SETUP" | "LOGIN">("SETUP");
     const [tempAuthDetails, setTempAuthDetails] = createSignal<{ email: string; passwordForLogin?: string }>({ email: "" });
 
-    const [isBecomeOrganizerModalOpen, setIsBecomeOrganizerModalOpen] = createSignal(false);
+    const [isCreateOrganizationModalOpen, setIsCreateOrganizationModalOpen] = createSignal(false);
+    const [isAdminRequestsModalOpen, setIsAdminRequestsModalOpen] = createSignal(false);
+    const [isManageOrgModalOpen, setIsManageOrgModalOpen] = createSignal(false);
+    const [selectedOrgToManage, setSelectedOrgToManage] = createSignal<string | null>(null);
+
 
     const sessionResource = createAsync<Session | null, undefined | { loading: true }>(
         () => getAuthSession(),
@@ -121,10 +127,22 @@ const Header: Component = () => {
     };
 
 
-    const openBecomeOrganizerModal = () => {
-        setIsBecomeOrganizerModalOpen(true);
+    const openCreateOrganizationModal = () => {
+        setIsCreateOrganizationModalOpen(true);
         setMenuOpen(false);
     };
+
+    const openAdminRequestsModal = () => {
+        setIsAdminRequestsModalOpen(true);
+        setMenuOpen(false);
+    };
+
+    const openManageOrganizationModal = (orgId: string) => {
+        setSelectedOrgToManage(orgId);
+        setIsManageOrgModalOpen(true);
+        setMenuOpen(false);
+    };
+
     const getContrastValue = () => {
         if (contrastLevel() === "mc") return "1";
         if (contrastLevel() === "hc") return "2";
@@ -133,25 +151,17 @@ const Header: Component = () => {
     const showUserSpecificIcon = createMemo(() => !!currentUser());
     const conditionForImageTag = createMemo(() => !!profileImageUrl() && !profileImageError());
 
-    const canBecomeOrganizer = createMemo(() => {
+    const canRequestOrganization = createMemo(() => {
         const user = currentUser();
         if (!user) return false;
-        if (user.provider !== "credentials") return true;
-        return user.twoFactorEnabled && user.isTwoFactorAuthenticated;
+        if (user.provider === "credentials" && !user.isTwoFactorAuthenticated) return false;
+        return true;
     });
-
-    const becomeOrganizerButtonTitle = createMemo(() => {
-        const user = currentUser();
-        if (!user) return "Veuillez vous connecter.";
-
-        if (user.provider !== "credentials") {
-            return "Devenir Organisateur";
-        }
-        if (!user.twoFactorEnabled) return "Veuillez activer la 2FA pour devenir organisateur.";
-        if (!user.isTwoFactorAuthenticated) return "Veuillez vérifier votre session 2FA (reconnexion si besoin).";
-        return "Devenir Organisateur";
+    const createOrganizationButtonTitle = createMemo(() => {
+        if (!currentUser()) return "Veuillez vous connecter.";
+        if (currentUser()?.provider === "credentials" && !currentUser()?.isTwoFactorAuthenticated) return "Veuillez vérifier votre session 2FA pour créer une organisation.";
+        return "Créer une Organisation";
     });
-
 
     return (
         <header class="fixed top-0 left-0 right-0 z-50 text-on-surface bg-surface">
@@ -215,24 +225,43 @@ const Header: Component = () => {
                                         </li>
                                     </Show>
 
-                                    <Show when={currentUser()?.role === 'USER' || currentUser()?.role === 'ORGANIZER'}>
-                                        <Show when={currentUser()?.role !== 'ADMIN'}>
-                                            <li>
-                                                <button
-                                                    onClick={openBecomeOrganizerModal}
-                                                    disabled={!canBecomeOrganizer()}
-                                                    class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    title={becomeOrganizerButtonTitle()}
-                                                >
-                                                    Devenir Organisateur
-                                                </button>
-                                                <Show when={!canBecomeOrganizer() && currentUser() && currentUser()?.provider === 'credentials' && !currentUser()?.twoFactorEnabled}>
-                                                    <p class="px-3 pt-0 pb-1 text-xs text-on-surface-variant/70">
-                                                        (2FA requise pour devenir organisateur)
-                                                    </p>
-                                                </Show>
-                                            </li>
-                                        </Show>
+                                    <li>
+                                        <button
+                                            onClick={openCreateOrganizationModal}
+                                            disabled={!canRequestOrganization()}
+                                            class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title={createOrganizationButtonTitle()}
+                                        >
+                                            Créer une Organisation
+                                        </button>
+                                    </li>
+
+                                    <Show when={currentUser()?.role === 'ADMIN'}>
+                                        <li>
+                                            <button
+                                                onClick={openAdminRequestsModal}
+                                                class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md"
+                                            >
+                                                Gérer les demandes d'organisation
+                                            </button>
+                                        </li>
+                                    </Show>
+
+                                    <Show when={currentUser()?.administeredOrganizations && currentUser()!.administeredOrganizations!.length > 0}>
+                                        <hr class="border-outline-variant my-1" />
+                                        <li class="px-3 py-2 text-sm text-on-surface-variant/70">Mes Organisations (Admin):</li>
+                                        <For each={currentUser()!.administeredOrganizations}>
+                                            {(org) => (
+                                                <li>
+                                                    <button
+                                                        onClick={() => openManageOrganizationModal(org.id)}
+                                                        class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md"
+                                                    >
+                                                        Gérer "{org.name}"
+                                                    </button>
+                                                </li>
+                                            )}
+                                        </For>
                                     </Show>
                                     <hr class="border-outline-variant my-1" />
                                     <li>
@@ -296,11 +325,28 @@ const Header: Component = () => {
                 />
             </Suspense>
             <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
-                <BecomeOrganizerModal
-                    isOpen={isBecomeOrganizerModalOpen}
-                    setIsOpen={setIsBecomeOrganizerModalOpen}
-                    onSuccess={() => revalidate(getAuthSession.key)}
+                <CreateOrganizationModal
+                    isOpen={isCreateOrganizationModalOpen}
+                    setIsOpen={setIsCreateOrganizationModalOpen}
+                    onSuccess={() => { /* Maybe revalidate pending requests or user session */ }}
                 />
+            </Suspense>
+            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
+                <AdminRequestsModal
+                    isOpen={isAdminRequestsModalOpen}
+                    setIsOpen={setIsAdminRequestsModalOpen}
+                />
+            </Suspense>
+            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
+                <Show when={selectedOrgToManage()}>
+                    {(orgId) => (
+                        <ManageOrganizationModal
+                            isOpen={isManageOrgModalOpen}
+                            setIsOpen={setIsManageOrgModalOpen}
+                            organizationId={orgId()}
+                        />
+                    )}
+                </Show>
             </Suspense>
         </header>
     );

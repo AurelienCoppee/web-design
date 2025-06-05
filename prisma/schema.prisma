@@ -14,79 +14,134 @@ datasource db {
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String  @map("user_id")
-  type               String
-  provider           String
-  providerAccountId  String  @map("provider_account_id")
-  refresh_token      String? 
-  access_token       String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?
-  session_state      String?
- 
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
- 
+
   @@unique([provider, providerAccountId])
   @@map("accounts")
 }
- 
+
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique @map("session_token")
   userId       String   @map("user_id")
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
- 
+
   @@map("sessions")
 }
- 
+
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime? @map("email_verified")
-  hashedPassword  String?
-  twoFactorSecret   String?
-  twoFactorEnabled  Boolean   @default(false)
-  image         String?
-  role       Role     @default(USER)
-  events     Event[]  @relation("UserEvents")
-  accounts      Account[]
-  sessions      Session[]
- 
+  id                 String    @id @default(cuid())
+  name               String?
+  email              String?   @unique
+  emailVerified      DateTime? @map("email_verified")
+  hashedPassword     String?
+  twoFactorSecret    String?
+  twoFactorEnabled   Boolean   @default(false)
+  image              String?
+  role               Role      @default(USER) // Site-wide role
+
+  accounts                 Account[]
+  sessions                 Session[]
+  organizationRequests     OrganizationRequests[]    @relation("UserRequests")
+  organizationMemberships  OrganizationMemberships[] @relation("UserMemberships")
+  createdOrganizations     Organizations[]           @relation("OrganizationCreator")
+
   @@map("users")
 }
- 
+
 model VerificationToken {
   identifier String
   token      String
   expires    DateTime
- 
+
   @@unique([identifier, token])
   @@map("verification_tokens")
 }
 
 model Event {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  date        DateTime
-  address     String
-  city        String
-  region      String
-  lat         Float
-  lng         Float
-  organizer   User     @relation("UserEvents", fields: [organizerId], references: [id])
-  organizerId String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  title          String
+  description    String
+  date           DateTime
+  address        String
+  city           String
+  region         String
+  lat            Float
+  lng            Float
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  creatorId    String
+  creator      User     @relation("EventOrganizer", fields: [organizerId], references: [id])
+
+  organizationId String?
+  organization   Organizations? @relation("OrganizationEvents", fields: [organizationId], references: [id], onDelete: SetNull) // onDelete: SetNull if event should persist if org is deleted
+
+  @@index([organizationId])
+}
+
+model OrganizationRequests {
+  id                String   @id @default(cuid())
+  userId            String
+  name              String
+  memberCount       Int
+  pastEventsLinks   String?
+  legalStatus       String?
+  status            String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation("UserRequests", fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Organizations {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  creatorId         String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  creator           User     @relation("OrganizationCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  memberships       OrganizationMemberships[] @relation("OrganizationMembers")
+  events            Event[]                   @relation("OrganizationEvents")
+
+  @@map("organizations")
+}
+
+model OrganizationMemberships {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrgRole  @default(MEMBER) // MEMBER, ADMIN (for the organization)
+  createdAt      DateTime @default(now())
+
+  organization   Organizations @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User          @relation("UserMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("organization_memberships")
 }
 
 enum Role {
   USER
-  ORGANIZER
+  ADMIN
+}
+
+enum OrgRole {
+  MEMBER
   ADMIN
 }

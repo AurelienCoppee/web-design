@@ -5,6 +5,7 @@ import { db } from "~/lib/db";
 import { z } from "zod";
 import { getRequestEvent } from "solid-js/web";
 import { getUpcomingEvents } from "../queries/eventQueries";
+import type { Organization } from "@prisma/client";
 
 const createEventSchemaServer = z.object({
     title: z.string().min(3, "Le titre doit comporter au moins 3 caractères"),
@@ -15,6 +16,7 @@ const createEventSchemaServer = z.object({
     region: z.string().min(2, "La région doit comporter au moins 2 caractères"),
     lat: z.coerce.number().min(-90, "Latitude invalide").max(90, "Latitude invalide"),
     lng: z.coerce.number().min(-180, "Longitude invalide").max(180, "Longitude invalide"),
+    organizationId: z.string().optional(),
 });
 
 export const createEventAction = action(async (formData: FormData) => {
@@ -26,8 +28,28 @@ export const createEventAction = action(async (formData: FormData) => {
     }
     const session = await getServerSessionFromAuth(reqEvent.request, authOptions);
 
-    if (!session?.user?.id || (session.user.role !== "ORGANIZER" && session.user.role !== "ADMIN")) {
-        return json({ error: "Non autorisé. Rôle Organisateur ou Admin requis." }, { status: 403 });
+    if (!session?.user?.id) {
+        return json({ error: "Non autorisé." }, { status: 403 });
+    }
+
+    const organizationId = formData.get("organizationId") as string | undefined;
+
+    let canCreate = false;
+    if (organizationId) {
+        const membership = await db.organizationMemberships.findUnique({
+            where: { organizationId_userId: { organizationId, userId: session.user.id } }
+        });
+        if (membership?.role === 'ADMIN') {
+            canCreate = true;
+        }
+    } else {
+        if (session.user.role === "ADMIN") {
+            canCreate = true;
+        }
+    }
+
+    if (!canCreate) {
+        return json({ error: "Non autorisé à créer un événement pour cette organisation ou en tant qu'utilisateur personnel." }, { status: 403 });
     }
 
     const rawData = {
@@ -40,14 +62,14 @@ export const createEventAction = action(async (formData: FormData) => {
         region: formData.get("region") as string | null,
         lat: formData.get("lat") as string | null,
         lng: formData.get("lng") as string | null,
+        organizationId: organizationId || null,
     };
-
     if (!rawData.date || !rawData.time) {
         return json({ error: "Les champs date et heure du formulaire sont requis." }, { status: 400 });
     }
     const timeParts = rawData.time.split(':');
-    const formattedTime = `${timeParts[0].padStart(2, '0')}:${timeParts[1].padStart(2, '0')}`;
-    const dateTimeString = `${rawData.date}T${formattedTime}:00.000Z`;
+    const formattedTime = `<span class="math-inline">\{timeParts\[0\]\.padStart\(2, '0'\)\}\:</span>{timeParts[1].padStart(2, '0')}`;
+    const dateTimeString = `<span class="math-inline">\{rawData\.date\}T</span>{formattedTime}:00.000Z`;
 
 
     const eventDataToValidate = {
@@ -59,6 +81,7 @@ export const createEventAction = action(async (formData: FormData) => {
         region: rawData.region,
         lat: rawData.lat,
         lng: rawData.lng,
+        organizationId: rawData.organizationId,
     };
 
     try {
@@ -67,14 +90,20 @@ export const createEventAction = action(async (formData: FormData) => {
         if (!validation.success) {
             return json({ error: "Données d'événement invalides", details: validation.error.format() }, { status: 400 });
         }
-
         const validatedData = validation.data;
 
         const newEvent = await db.event.create({
             data: {
-                ...validatedData,
+                title: validatedData.title,
+                description: validatedData.description,
                 date: new Date(validatedData.date),
+                address: validatedData.address,
+                city: validatedData.city,
+                region: validatedData.region,
+                lat: validatedData.lat,
+                lng: validatedData.lng,
                 organizerId: session.user.id,
+                organizationId: validatedData.organizationId || undefined,
             },
         });
         return json(newEvent, { status: 201, revalidate: getUpcomingEvents.key });

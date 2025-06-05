@@ -1,10 +1,13 @@
 import { query } from "@solidjs/router";
 import { db } from "~/lib/db";
-import type { Event as EventTypePrisma, User as UserTypePrisma } from "@prisma/client";
+import type { Event as EventTypePrisma, User as UserTypePrisma, Organizations } from "@prisma/client";
 
-export type EventWithOrganizer = EventTypePrisma & { organizer?: Pick<UserTypePrisma, 'id' | 'name' | 'email'> };
+export type EventWithDetails = EventTypePrisma & {
+    organizer?: Pick<UserTypePrisma, 'id' | 'name' | 'email'>;
+    organization?: Pick<Organizations, 'id' | 'name'>;
+};
 
-export const getUpcomingEvents = query(async (): Promise<EventWithOrganizer[]> => {
+export const getUpcomingEvents = query(async (): Promise<EventWithDetails[]> => {
     "use server";
     try {
         const events = await db.event.findMany({
@@ -17,16 +20,15 @@ export const getUpcomingEvents = query(async (): Promise<EventWithOrganizer[]> =
                 date: "asc",
             },
             include: {
-                organizer: {
+                organization: {
                     select: {
                         id: true,
                         name: true,
-                        email: true,
                     }
                 }
             }
         });
-        return events as EventWithOrganizer[];
+        return events as EventWithDetails[];
     } catch (error) {
         console.error("Error fetching upcoming events:", error);
         throw new Error("Failed to fetch upcoming events");

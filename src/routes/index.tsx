@@ -14,7 +14,7 @@ import { createAsync, useSubmissions, revalidate } from "@solidjs/router";
 import AddEventFAB from "~/components/AddEventFAB";
 const CreateEventModal = lazy(() => import("~/components/modal/CreateEventModal"));
 const EventDetailModal = lazy(() => import("~/components/modal/EventDetailModal"));
-import { getUpcomingEvents, type EventWithOrganizer } from "~/server/queries/eventQueries";
+import { getUpcomingEvents, type EventWithDetails } from "~/server/queries/eventQueries";
 import { getAuthSession } from "~/server/queries/sessionQueries";
 import { createEventAction } from "~/server/actions/eventActions";
 
@@ -25,9 +25,9 @@ const Home: VoidComponent = () => {
 
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = createSignal(false);
   const [isEventDetailModalOpen, setIsEventDetailModalOpen] = createSignal(false);
-  const [selectedEvent, setSelectedEvent] = createSignal<EventWithOrganizer | null>(null);
+  const [selectedEvent, setSelectedEvent] = createSignal<EventWithDetails | null>(null);
 
-  const openEventDetails = (event: EventWithOrganizer) => {
+  const openEventDetails = (event: EventWithDetails) => {
     setSelectedEvent(event);
     setIsEventDetailModalOpen(true);
   };
@@ -58,7 +58,7 @@ const Home: VoidComponent = () => {
 
   const canCreateEvent = createMemo(() => {
     const user = sessionData()?.user;
-    return !!user && (user.role === "ORGANIZER" || user.role === "ADMIN");
+    return user.role === "ADMIN" || (user.administeredOrganizations && user.administeredOrganizations.length > 0);
   });
 
   const handleEventCreated = () => {
@@ -123,6 +123,9 @@ const Home: VoidComponent = () => {
                       >
                         <h3 class="text-xl font-semibold text-on-surface-variant mb-1">{event.title}</h3>
                         <p class="text-sm text-primary mb-2">{formatTime(event.date)}</p>
+                        <Show when={event.organization}>
+                          <p class="text-xs text-tertiary mb-1">Par: {event.organization!.name}</p>
+                        </Show>
                         <p class="text-sm text-on-surface-variant mb-1">{event.city}, {event.region}</p>
                         <p class="text-xs text-on-surface-variant/70 line-clamp-2">{event.description}</p>
                       </div>
