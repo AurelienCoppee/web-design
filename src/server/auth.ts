@@ -77,7 +77,7 @@ export const authOptions: SolidAuthConfig = {
                 const isValidPassword = await bcrypt.compare(password, user.hashedPassword);
                 if (!isValidPassword) throw new Error("Mot de passe invalide.");
 
-                let isTwoFactorAuthenticatedForThisSignIn = !user.twoFactorEnabled;
+                let isTwoFactorAuthenticatedForThisSignIn = false;
 
                 if (user.twoFactorEnabled) {
                     if (!user.twoFactorSecret) throw new Error("Secret 2FA manquant pour l'utilisateur.");
@@ -85,6 +85,7 @@ export const authOptions: SolidAuthConfig = {
 
                     const isValidOTP = authenticator.verify({ token: otp, secret: user.twoFactorSecret });
                     if (!isValidOTP) throw new Error("Code OTP invalide.");
+
                     isTwoFactorAuthenticatedForThisSignIn = true;
                 }
 
@@ -172,3 +173,4 @@ export const authOptions: SolidAuthConfig = {
     },
     debug: process.env.NODE_ENV === "development",
 };
+
