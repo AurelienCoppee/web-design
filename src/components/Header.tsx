@@ -342,13 +342,11 @@ const Header: Component = () => {
             </Suspense>
             <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high text-on-surface-variant rounded-mat-corner-medium shadow-mat-level2">Chargement...</div>}>
                 <Show when={selectedOrgToManage()}>
-                    {(orgId) => (
-                        <ManageOrganizationModal
-                            isOpen={isManageOrgModalOpen}
-                            setIsOpen={setIsManageOrgModalOpen}
-                            organizationId={orgId()}
-                        />
-                    )}
+                    <ManageOrganizationModal
+                        isOpen={isManageOrgModalOpen}
+                        setIsOpen={setIsManageOrgModalOpen}
+                        organizationId={selectedOrgToManage}
+                    />
                 </Show>
             </Suspense>
         </header>
