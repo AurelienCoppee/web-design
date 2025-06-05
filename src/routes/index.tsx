@@ -11,7 +11,7 @@ import {
   createResource,
   createEffect
 } from "solid-js";
-import { Meta, Title } from "@solidjs/meta";
+import { Meta, Title, Link, Base } from "@solidjs/meta";
 import { createAsync, useSubmissions, revalidate, useSubmission } from "@solidjs/router";
 import AddEventFAB from "~/components/AddEventFAB";
 const CreateEventModal = lazy(() => import("~/components/modal/CreateEventModal"));
@@ -130,8 +130,29 @@ const Home: VoidComponent = () => {
 
   return (
     <>
+      <Meta charset="utf-8" />
+      <Meta name="viewport" content="width=device-width, initial-scale=1" />
+      <Base href="/" />
+      <Link rel="icon" href="/favicon.ico" />
+
       <Title>Ralvo</Title>
-      <Meta name="description" content="Parcourez les événements à venir." />
+
+      <Meta name="description" content="Ralvo est la plateforme dédiée aux événements sportifs en plein air. Découvrez, créez et partagez des activités près de chez vous, en pleine nature." />
+      <Meta name="keywords" content="randonnée, vélo, gravel, course, événements, sport, communauté, Ralvo" />
+      <Meta name="author" content="Aurélien Coppée" />
+      <Meta name="theme-color" content="#a359ff" />
+
+      <Meta property="og:type" content="website" />
+      <Meta property="og:url" content="https://ralvo.be/" />
+      <Meta property="og:title" content="Ralvo - Événements Sportifs en Plein Air" />
+      <Meta property="og:description" content="Ralvo est votre plateforme pour découvrir, créer et partager des événements sportifs extérieurs. Rejoignez une communauté active et vivez l'aventure." />
+      {/* <Meta property="og:image" content="https://ralvo.be/og-image.png" /> */}
+
+      <Meta property="twitter:card" content="summary_large_image" />
+      <Meta property="twitter:url" content="https://ralvo.be/" />
+      <Meta property="twitter:title" content="Ralvo - Événements Sportifs en Plein Air" />
+      <Meta property="twitter:description" content="Ralvo est votre plateforme pour découvrir, créer et partager des événements sportifs extérieurs. Rejoignez une communauté active et vivez l'aventure." />
+      {/* <Meta property="twitter:image" content="https://ralvo.be/twitter-image.png" /> */}
       <main class="min-h-screen bg-background text-on-background pt-20 pb-10 px-4 md:px-8">
         <div class="container mx-auto">
           <h1 class="text-display-medium font-bold tracking-tight text-on-background mb-10 text-center">
