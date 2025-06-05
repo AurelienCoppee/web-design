@@ -165,7 +165,7 @@ const Header: Component = () => {
     });
 
     return (
-        <header class="fixed top-0 left-0 right-0 z-50 text-on-surface bg-surface">
+        <header class="fixed top-0 left-0 right-0 z-50 text-on-surface">
             <div class="flex items-center justify-between h-16 px-4">
                 <A href="/" class="text-title-large font-bold tracking-tight text-on-surface no-underline">RALVO</A>
                 <div class="relative ml-auto">
