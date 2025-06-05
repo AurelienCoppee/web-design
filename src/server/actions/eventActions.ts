@@ -4,8 +4,7 @@ import { authOptions } from "~/server/auth";
 import { db } from "~/lib/db";
 import { z } from "zod";
 import { getRequestEvent } from "solid-js/web";
-import { getUpcomingEvents } from "../queries/eventQueries";
-import type { Organization } from "@prisma/client";
+import { getUpcomingEvents } from "~/server/queries/eventQueries";
 
 const createEventSchemaServer = z.object({
     title: z.string().min(3, "Le titre doit comporter au moins 3 caractères"),

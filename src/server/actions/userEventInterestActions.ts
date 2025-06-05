@@ -4,8 +4,8 @@ import { authOptions } from "~/server/auth";
 import { db } from "~/lib/db";
 import { z } from "zod";
 import { getRequestEvent } from "solid-js/web";
-import { getUpcomingEvents } from "../queries/eventQueries";
-import { getUserInterestsForDay, getEventInterestCountForUser } from "../queries/userEventInterestQueries";
+import { getUpcomingEvents } from "~/server/queries/eventQueries";
+import { getUserInterestsForDay, getEventInterestCountForUser } from "~/server/queries/userEventInterestQueries";
 
 const eventInterestSchema = z.object({
     eventId: z.string().min(1, "Event ID is required."),
