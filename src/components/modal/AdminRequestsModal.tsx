@@ -1,4 +1,4 @@
-import { Show, For, type VoidComponent, Setter, Accessor, createEffect } from "solid-js";
+import { Show, For, type VoidComponent, Setter, Accessor, createEffect, onMount, onCleanup } from "solid-js";
 import { createAsync, useSubmission, revalidate } from "@solidjs/router";
 import { getPendingOrganizationRequests, type OrganizationRequestWithUser } from "~/server/queries/organizationQueries";
 import { approveOrganizationRequestAction, rejectOrganizationRequestAction } from "~/server/actions/organizationActions";
@@ -16,10 +16,48 @@ const AdminRequestsModal: VoidComponent<AdminRequestsModalProps> = (props) => {
     const approveSubmission = useSubmission(approveOrganizationRequestAction);
     const rejectSubmission = useSubmission(rejectOrganizationRequestAction);
 
-    createEffect(() => {
-        if (props.isOpen()) {
-            revalidate(getPendingOrganizationRequests.key);
-        }
+    let modalRef: HTMLDivElement | undefined;
+    let lastFocusedElement: HTMLElement | null = null;
+
+    const handleClose = () => {
+        if (approveSubmission.pending || rejectSubmission.pending) return;
+        props.setIsOpen(false);
+    };
+
+    onMount(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") handleClose();
+            if (e.key === 'Tab' && modalRef) {
+                const focusable = Array.from(modalRef.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter(el => !el.hasAttribute('disabled'));
+                if (focusable.length === 0) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                    last.focus();
+                    e.preventDefault();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    first.focus();
+                    e.preventDefault();
+                }
+            }
+        };
+
+        createEffect(() => {
+            if (props.isOpen()) {
+                revalidate(getPendingOrganizationRequests.key);
+                lastFocusedElement = document.activeElement as HTMLElement;
+                window.addEventListener('keydown', handleKeyDown);
+                setTimeout(() => modalRef?.focus(), 50);
+            } else {
+                window.removeEventListener('keydown', handleKeyDown);
+                lastFocusedElement?.focus();
+            }
+        });
+
+        onCleanup(() => {
+            window.removeEventListener('keydown', handleKeyDown);
+            lastFocusedElement?.focus();
+        });
     });
 
     const handleApprove = async (requestId: string) => {
@@ -34,15 +72,17 @@ const AdminRequestsModal: VoidComponent<AdminRequestsModalProps> = (props) => {
         await rejectOrganizationRequestAction(formData);
     };
 
-    const handleClose = () => {
-        if (approveSubmission.pending || rejectSubmission.pending) return;
-        props.setIsOpen(false);
-    };
-
     return (
         <Show when={props.isOpen()}>
             <div class="fixed inset-0 z-[70] flex items-center justify-center bg-scrim/50 p-4">
-                <div class="bg-surface-container p-6 rounded-mat-corner-extra-large shadow-mat-level3 w-full max-w-2xl m-4 relative max-h-[90vh] overflow-y-auto">
+                <div
+                    ref={modalRef}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="admin-requests-title"
+                    tabindex="-1"
+                    class="bg-surface-container p-6 rounded-mat-corner-extra-large shadow-mat-level3 w-full max-w-2xl m-4 relative max-h-[90vh] overflow-y-auto outline-none"
+                >
                     <button
                         onClick={handleClose}
                         class="absolute top-4 right-4 p-2 rounded-mat-corner-full hover:bg-surface-container-high text-on-surface-variant disabled:opacity-50"
@@ -50,7 +90,7 @@ const AdminRequestsModal: VoidComponent<AdminRequestsModalProps> = (props) => {
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" /></svg>
                     </button>
-                    <h2 class="text-headline-small text-on-surface mb-6">Demandes de Création d'Organisation en Attente</h2>
+                    <h2 id="admin-requests-title" class="text-headline-small text-on-surface mb-6">Demandes de Création d'Organisation en Attente</h2>
                     <Show when={pendingRequests.loading}>
                         <p class="text-body-medium text-on-surface-variant">Chargement des demandes...</p>
                     </Show>

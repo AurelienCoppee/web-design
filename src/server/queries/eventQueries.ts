@@ -1,6 +1,9 @@
 import { query } from "@solidjs/router";
 import { db } from "~/lib/db";
 import type { Event as EventTypePrisma, User as UserTypePrisma, Organization } from "@prisma/client";
+import { getRequestEvent } from "solid-js/web";
+
+const EVENT_CACHE_SECONDS = 60;
 
 export type EventWithDetails = EventTypePrisma & {
     organizer?: Pick<UserTypePrisma, 'id' | 'name' | 'email'>;
@@ -9,6 +12,11 @@ export type EventWithDetails = EventTypePrisma & {
 
 export const getUpcomingEvents = query(async (): Promise<EventWithDetails[]> => {
     "use server";
+    const event = getRequestEvent();
+    if (event) {
+        event.response.headers.set("Cache-Control", `public, max-age=${EVENT_CACHE_SECONDS}, stale-while-revalidate=${EVENT_CACHE_SECONDS * 2}`);
+    }
+
     try {
         const events = await db.event.findMany({
             where: {
