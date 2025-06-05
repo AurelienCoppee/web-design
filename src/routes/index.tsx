@@ -8,7 +8,8 @@ import {
   Suspense,
   onMount,
   onCleanup,
-  createResource
+  createResource,
+  createEffect
 } from "solid-js";
 import { Meta, Title } from "@solidjs/meta";
 import { createAsync, useSubmissions, revalidate, useSubmission } from "@solidjs/router";
@@ -19,7 +20,7 @@ import { getUpcomingEvents, type EventWithDetails } from "~/server/queries/event
 import { getAuthSession } from "~/server/queries/sessionQueries";
 import { createEventAction } from "~/server/actions/eventActions";
 import { markEventInterestAction, removeEventInterestAction } from "~/server/actions/userEventInterestActions";
-import { getMyEventInterests, getInterestedOrgMembersForEvent, getEventInterestCountForUser, getUserInterestsForDay } from "~/server/queries/userEventInterestQueries";
+import { getMyEventInterests, getUserInterestsForDay } from "~/server/queries/userEventInterestQueries";
 
 const Home: VoidComponent = () => {
   const sessionData = createAsync(() => getAuthSession());
@@ -36,7 +37,8 @@ const Home: VoidComponent = () => {
   };
 
   const formatDateHeading = (dateString: string | Date) => {
-    return new Date(dateString).toLocaleDateString(undefined, {
+    const date = new Date(dateString);
+    return date.toLocaleDateString(undefined, {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     });
   };
@@ -56,11 +58,12 @@ const Home: VoidComponent = () => {
 
     const groups: Record<string, EventWithDetails[]> = {};
     rawEventsData.forEach(event => {
-      const eventDate = new Date(event.date).toDateString();
-      if (!groups[eventDate]) {
-        groups[eventDate] = [];
+      const eventDate = new Date(event.date);
+      const dateKey = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()).toISOString();
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
       }
-      groups[eventDate].push(event);
+      groups[dateKey].push(event);
     });
     return Object.entries(groups).sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime());
   });
@@ -71,6 +74,7 @@ const Home: VoidComponent = () => {
   });
 
   const handleEventCreated = () => {
+    revalidate(getUpcomingEvents.key);
   };
 
   onMount(() => {
@@ -97,6 +101,7 @@ const Home: VoidComponent = () => {
 
   const eventInterestActionSubmission = useSubmission(markEventInterestAction);
   const removeInterestActionSubmission = useSubmission(removeEventInterestAction);
+
   const isProcessingInterest = (eventId: string) => {
     return (eventInterestActionSubmission.pending && eventInterestActionSubmission.input?.get('eventId') === eventId) ||
       (removeInterestActionSubmission.pending && removeInterestActionSubmission.input?.get('eventId') === eventId);
@@ -108,7 +113,7 @@ const Home: VoidComponent = () => {
     const formData = new FormData();
     formData.append("eventId", event.id);
 
-    const eventDateStr = event.date.toISOString().split('T')[0];
+    const eventDateStr = new Date(event.date).toISOString().split('T')[0];
     const interestOnDay = await getUserInterestsForDay(sessionData()!.user!.id, eventDateStr);
 
 
@@ -123,39 +128,20 @@ const Home: VoidComponent = () => {
     refetchMyInterests();
   };
 
-
-  // ... in the event card/loop
-  // <For each={eventsOnDate}>
-  //   {(event) => (
-  //     <div> ...
-  //       <Show when={sessionData()?.user}>
-  //         <button
-  //           onClick={() => handleInterestToggle(event)}
-  //           disabled={isProcessingInterest(event.id)}
-  //           class="..." // Style based on isInterestedInEvent(event.id)
-  //         >
-  //           {isProcessingInterest(event.id) ? '...' : (isInterestedInEvent(event.id) ? "Ne plus être intéressé" : "Je suis intéressé")}
-  //         </button>
-  //       </Show>
-  //     </div>
-  //   )}
-  // </For>
-  // ...
-
   return (
     <>
       <Title>Ralvo</Title>
       <Meta name="description" content="Parcourez les événements à venir." />
       <main class="min-h-screen bg-background text-on-background pt-20 pb-10 px-4 md:px-8">
         <div class="container mx-auto">
-          <h1 class="text-4xl font-bold tracking-tight text-on-background mb-8 text-center">
+          <h1 class="text-display-medium font-bold tracking-tight text-on-background mb-10 text-center">
             Événements à Venir
           </h1>
 
           <For each={pendingEventSubmissions}>
             {(submission) => (
               <Show when={submission.pending && submission.input}>
-                <div class="my-4 p-3 bg-primary-container text-on-primary-container rounded-md text-center animate-pulse">
+                <div class="my-4 p-4 bg-primary-container text-on-primary-container rounded-mat-corner-medium text-center animate-pulse font-body-medium">
                   Création de l'événement en cours:
                   <Show when={(submission.input[0] as FormData)?.get('title') as string | undefined}>
                     {title => ` "${title()}"...`}
@@ -166,57 +152,61 @@ const Home: VoidComponent = () => {
           </For>
 
           <Show when={eventsResource.loading && !pendingEventSubmissions.some(s => s.pending)}>
-            <p class="text-center text-lg text-on-surface-variant">Chargement des événements...</p>
+            <p class="text-center text-body-large text-on-surface-variant py-10">Chargement des événements...</p>
           </Show>
 
           <Show when={!eventsResource.loading && groupedEvents().length === 0 && !pendingEventSubmissions.some(s => s.pending && s.input)}>
-            <p class="text-center text-lg text-on-surface-variant">Aucun événement à venir pour le moment.</p>
+            <p class="text-center text-body-large text-on-surface-variant py-10">Aucun événement à venir pour le moment.</p>
           </Show>
+
           <For each={groupedEvents()}>
             {([date, eventsOnDate]) => (
-              <div class="mb-8">
-                <h2 class="text-2xl font-semibold text-primary mb-4 border-b border-outline-variant pb-2">
+              <div class="mb-10">
+                <h2 class="text-headline-small text-primary mb-6 border-b-2 border-outline-variant pb-3">
                   {formatDateHeading(eventsOnDate[0].date)}
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <For each={eventsOnDate}>
                     {(event) => {
-                      const [interestCount, { refetch: refetchCount }] = createResource(() => event.id, getEventInterestCountForUser);
+                      const [interestCountResource, { refetch: refetchInterestCount }] = createResource(() => event.id, getEventInterestCountForUser);
                       createEffect(() => {
-                        if ((eventInterestActionSubmission.result || removeInterestActionSubmission.result) &&
-                          (eventInterestActionSubmission.input?.get('eventId') === event.id || removeInterestActionSubmission.input?.get('eventId') === event.id)) {
-                          refetchCount();
+                        if (eventInterestActionSubmission.result || removeInterestActionSubmission.result) {
+                          if (eventInterestActionSubmission.input?.get('eventId') === event.id || removeInterestActionSubmission.input?.get('eventId') === event.id) {
+                            refetchInterestCount();
+                            refetchMyInterests();
+                          }
                         }
                       });
 
+
                       return (
-                        <div class="bg-surface-container rounded-lg shadow-mat-level1 p-5 flex flex-col justify-between">
+                        <div class="bg-surface-container rounded-mat-corner-extra-large shadow-mat-level2 p-5 flex flex-col justify-between transition-all hover:shadow-mat-level4">
                           <div>
                             <div
-                              class="cursor-pointer hover:shadow-mat-level3 transition-shadow"
+                              class="cursor-pointer"
                               onClick={() => openEventDetails(event)}
                             >
-                              <h3 class="text-xl font-semibold text-on-surface-variant mb-1">{event.title}</h3>
-                              <p class="text-sm text-primary mb-2">{formatTime(event.date)}</p>
+                              <h3 class="text-title-large font-semibold text-on-surface-variant mb-1.5">{event.title}</h3>
+                              <p class="text-label-medium text-primary mb-2.5">{formatTime(event.date)}</p>
                               <Show when={event.organization}>
-                                <p class="text-xs text-tertiary mb-1">Par: {event.organization!.name}</p>
+                                <p class="text-label-small text-tertiary mb-1.5">Par: {event.organization!.name}</p>
                               </Show>
-                              <p class="text-sm text-on-surface-variant mb-1">{event.city}, {event.region}</p>
-                              <p class="text-xs text-on-surface-variant/70 line-clamp-2">{event.description}</p>
+                              <p class="text-body-medium text-on-surface-variant mb-1.5">{event.city}, {event.region}</p>
+                              <p class="text-body-small text-on-surface-variant/80 line-clamp-3">{event.description}</p>
                             </div>
                             <Show when={sessionData()?.user?.id && event.organizationId && sessionData()?.user?.administeredOrganizations?.some(org => org.id === event.organizationId)}>
-                              <p class="text-xs text-on-surface-variant mt-2">Personnes intéressées : {interestCount() ?? 'Chargement...'}</p>
+                              <p class="text-label-small text-on-surface-variant mt-2.5">Personnes intéressées : {interestCountResource() ?? '0'}</p>
                             </Show>
                           </div>
                           <Show when={sessionData()?.user}>
                             <button
                               onClick={() => handleInterestToggle(event)}
                               disabled={isProcessingInterest(event.id)}
-                              class={`mt-3 w-full py-2 px-3 rounded-md text-sm font-medium transition-colors
-                                                        ${isInterestedInEvent(event.id)
-                                  ? 'bg-secondary-container text-on-secondary-container hover:brightness-95'
+                              class={`mt-4 w-full py-2.5 px-4 rounded-mat-corner-full font-label-large transition-colors
+                                ${isInterestedInEvent(event.id)
+                                  ? 'bg-secondary-container text-on-secondary-container hover:bg-secondary-container/80'
                                   : 'bg-primary text-on-primary hover:brightness-110'
-                                } disabled:opacity-50`}
+                                } disabled:opacity-60 disabled:cursor-not-allowed`}
                             >
                               {isProcessingInterest(event.id)
                                 ? <span class="animate-pulse">Mise à jour...</span>
@@ -238,14 +228,14 @@ const Home: VoidComponent = () => {
         </Show>
       </main>
 
-      <Suspense fallback={<div class="fixed inset-0 bg-scrim/30 flex items-center justify-center text-on-primary-container p-4 rounded">Chargement du modal...</div>}>
+      <Suspense fallback={<div class="fixed inset-0 bg-scrim/30 flex items-center justify-center text-on-primary-container p-4 rounded-mat-corner-medium">Chargement du modal...</div>}> {/* Updated rounding */}
         <CreateEventModal
           isOpen={isCreateEventModalOpen}
           setIsOpen={setIsCreateEventModalOpen}
           onEventCreated={handleEventCreated}
         />
       </Suspense>
-      <Suspense fallback={<div class="fixed inset-0 bg-scrim/30 flex items-center justify-center text-on-primary-container p-4 rounded">Chargement des détails...</div>}>
+      <Suspense fallback={<div class="fixed inset-0 bg-scrim/30 flex items-center justify-center text-on-primary-container p-4 rounded-mat-corner-medium">Chargement des détails...</div>}> {/* Updated rounding */}
         <EventDetailModal
           isOpen={isEventDetailModalOpen}
           setIsOpen={setIsEventDetailModalOpen}

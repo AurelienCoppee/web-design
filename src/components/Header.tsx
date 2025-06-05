@@ -6,7 +6,8 @@ import {
     createEffect,
     createMemo,
     lazy,
-    Suspense
+    Suspense,
+    For
 } from "solid-js";
 import { A, revalidate } from "@solidjs/router";
 import { signOut } from "@auth/solid-start/client";
@@ -166,13 +167,13 @@ const Header: Component = () => {
     return (
         <header class="fixed top-0 left-0 right-0 z-50 text-on-surface bg-surface">
             <div class="flex items-center justify-between h-16 px-4">
-                <A href="/" class="text-2xl font-bold tracking-tight text-on-surface no-underline">RALVO</A>
+                <A href="/" class="text-title-large font-bold tracking-tight text-on-surface no-underline">RALVO</A>
                 <div class="relative ml-auto">
                     <button
                         ref={buttonRef}
                         aria-haspopup="true"
                         aria-expanded={menuOpen()}
-                        class="p-1 rounded-full hover:bg-surface-variant transition flex items-center justify-center"
+                        class="p-1 rounded-mat-corner-full hover:bg-surface-variant transition flex items-center justify-center"
                         style={{ width: "40px", height: "40px" }}
                         onClick={() => setMenuOpen(!menuOpen())}
                     >
@@ -195,7 +196,7 @@ const Header: Component = () => {
                                 <img
                                     src={profileImageUrl()!}
                                     alt="Photo de profil"
-                                    class="rounded-full w-8 h-8 object-cover"
+                                    class="rounded-mat-corner-full w-8 h-8 object-cover"
                                     onError={() => { if (hasAttemptedHydration()) setProfileImageError(true); }}
                                 />
                             </Show>
@@ -204,24 +205,24 @@ const Header: Component = () => {
                     <Show when={menuOpen()}>
                         <div
                             ref={menuPopupRef}
-                            class="absolute right-0 mt-2 w-72 bg-surface-container shadow-mat-level2 rounded-lg z-[70] animate-fade-in p-2"
+                            class="absolute right-0 mt-2 w-72 bg-surface-container shadow-mat-level2 rounded-mat-corner-medium z-[70] animate-fade-in p-2"
                         >
                             <ul class="text-on-surface-variant space-y-1">
                                 <Show
                                     when={showUserSpecificIcon() && hasAttemptedHydration()}
                                     fallback={
                                         <li>
-                                            <button onClick={openMainLoginModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Connexion / Inscription</button>
+                                            <button onClick={openMainLoginModal} class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large">Connexion / Inscription</button>
                                         </li>
                                     }
                                 >
-                                    <li class="px-3 py-2 text-sm text-on-surface-variant/70">
+                                    <li class="px-3 py-2 text-label-medium text-on-surface-variant/70">
                                         Connecté: {currentUser()?.email}
                                     </li>
 
                                     <Show when={currentUser()?.provider === 'credentials' && !currentUser()?.twoFactorEnabled}>
                                         <li>
-                                            <button onClick={openActivate2FAFromProfile} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Activer 2FA</button>
+                                            <button onClick={openActivate2FAFromProfile} class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large">Activer 2FA</button>
                                         </li>
                                     </Show>
 
@@ -230,7 +231,7 @@ const Header: Component = () => {
                                             <button
                                                 onClick={openCreateOrganizationModal}
                                                 disabled={!canRequestOrganization()}
-                                                class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                                class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large disabled:opacity-50 disabled:cursor-not-allowed"
                                                 title={createOrganizationButtonTitle()}
                                             >
                                                 Créer une Organisation
@@ -242,7 +243,7 @@ const Header: Component = () => {
                                         <li>
                                             <button
                                                 onClick={openAdminRequestsModal}
-                                                class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md"
+                                                class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large"
                                             >
                                                 Gérer les demandes d'organisation
                                             </button>
@@ -251,13 +252,13 @@ const Header: Component = () => {
 
                                     <Show when={currentUser()?.administeredOrganizations && currentUser()!.administeredOrganizations!.length > 0}>
                                         <hr class="border-outline-variant my-1" />
-                                        <li class="px-3 py-2 text-sm text-on-surface-variant/70">Mes Organisations (Admin):</li>
-                                        <For each={currentUser()!.administeredOrganizations}>
+                                        <li class="px-3 py-2 text-label-medium text-on-surface-variant/70">Mes Organisations (Admin):</li>
+                                        <For each={currentUser()!.administeredOrganizations!}>
                                             {(org) => (
                                                 <li>
                                                     <button
                                                         onClick={() => openManageOrganizationModal(org.id)}
-                                                        class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md"
+                                                        class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large"
                                                     >
                                                         Gérer "{org.name}"
                                                     </button>
@@ -267,19 +268,19 @@ const Header: Component = () => {
                                     </Show>
                                     <hr class="border-outline-variant my-1" />
                                     <li>
-                                        <button onClick={handleSignOut} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Se déconnecter</button>
+                                        <button onClick={handleSignOut} class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large">Se déconnecter</button>
                                     </li>
                                 </Show>
                                 <hr class="border-outline-variant my-1" />
                                 <li class="flex items-center justify-between px-3 py-2">
-                                    <span>Thème Sombre</span>
+                                    <span class="font-label-large">Thème Sombre</span>
                                     <label class="relative inline-flex items-center cursor-pointer">
                                         <input type="checkbox" checked={isDarkMode()} onChange={() => setIsDarkMode(!isDarkMode())} class="sr-only peer" />
-                                        <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-on-surface after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                        <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary rounded-mat-corner-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-on-surface after:border-gray-300 after:border after:rounded-mat-corner-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                                     </label>
                                 </li>
                                 <li class="px-3 py-2">
-                                    <label for="contrast-slider" class="block text-sm mb-1">Contraste</label>
+                                    <label for="contrast-slider" class="block font-label-large mb-1">Contraste</label>
                                     <input
                                         type="range"
                                         id="contrast-slider"
@@ -293,9 +294,9 @@ const Header: Component = () => {
                                             else if (val === "1") setContrastLevel("mc");
                                             else if (val === "2") setContrastLevel("hc");
                                         }}
-                                        class="w-full h-2 bg-surface-variant rounded-lg appearance-none cursor-pointer accent-primary"
+                                        class="w-full h-2 bg-surface-variant rounded-mat-corner-full appearance-none cursor-pointer accent-primary"
                                     />
-                                    <div class="flex justify-between text-xs text-on-surface-variant/70 mt-1">
+                                    <div class="flex justify-between text-label-small text-on-surface-variant/70 mt-1">
                                         <span>Normal</span>
                                         <span>Moyen</span>
                                         <span>Haut</span>
@@ -307,7 +308,7 @@ const Header: Component = () => {
                 </div>
             </div>
 
-            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
+            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high text-on-surface-variant rounded-mat-corner-medium shadow-mat-level2">Chargement...</div>}>
                 <LoginSignupModal
                     isOpen={isLoginSignupModalOpen}
                     setIsOpen={setIsLoginSignupModalOpen}
@@ -316,7 +317,7 @@ const Header: Component = () => {
                     onRequire2FA={handleRequire2FAForLogin}
                 />
             </Suspense>
-            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
+            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high text-on-surface-variant rounded-mat-corner-medium shadow-mat-level2">Chargement...</div>}>
                 <TwoFactorAuthModal
                     isOpen={isTwoFactorModalOpen}
                     setIsOpen={setIsTwoFactorModalOpen}
@@ -326,20 +327,20 @@ const Header: Component = () => {
                     passwordForLogin={() => tempAuthDetails().passwordForLogin}
                 />
             </Suspense>
-            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
+            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high text-on-surface-variant rounded-mat-corner-medium shadow-mat-level2">Chargement...</div>}>
                 <CreateOrganizationModal
                     isOpen={isCreateOrganizationModalOpen}
                     setIsOpen={setIsCreateOrganizationModalOpen}
-                    onSuccess={() => { /* Maybe revalidate pending requests or user session */ }}
+                    onSuccess={() => { }}
                 />
             </Suspense>
-            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
+            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high text-on-surface-variant rounded-mat-corner-medium shadow-mat-level2">Chargement...</div>}>
                 <AdminRequestsModal
                     isOpen={isAdminRequestsModalOpen}
                     setIsOpen={setIsAdminRequestsModalOpen}
                 />
             </Suspense>
-            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
+            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high text-on-surface-variant rounded-mat-corner-medium shadow-mat-level2">Chargement...</div>}>
                 <Show when={selectedOrgToManage()}>
                     {(orgId) => (
                         <ManageOrganizationModal

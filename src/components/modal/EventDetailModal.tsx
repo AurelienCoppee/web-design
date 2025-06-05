@@ -1,6 +1,5 @@
 import { Show, type VoidComponent, Setter, Accessor, For, createResource, createMemo } from "solid-js";
 import { createAsync } from "@solidjs/router";
-import type { Event as EventTypePrisma } from "@prisma/client";
 import { getAuthSession } from "~/server/queries/sessionQueries";
 import { getInterestedOrgMembersForEvent, getEventInterestCountForUser, type InterestedUserForEvent } from "~/server/queries/userEventInterestQueries";
 import type { EventWithDetails } from "~/server/queries/eventQueries";
@@ -62,29 +61,29 @@ const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
         <Show when={props.isOpen() && props.event()}>
             {(currentEvent) => (
                 <div class="fixed inset-0 z-[70] flex items-center justify-center bg-scrim/50 p-4">
-                    <div class="bg-surface-container p-6 rounded-lg shadow-mat-level3 w-full max-w-xl m-4 relative max-h-[90vh] overflow-y-auto">
+                    <div class="bg-surface-container p-6 rounded-mat-corner-large shadow-mat-level3 w-full max-w-xl m-4 relative max-h-[90vh] overflow-y-auto">
                         <button
                             onClick={handleClose}
-                            class="absolute top-3 right-3 p-2 rounded-full hover:bg-surface-variant text-on-surface-variant"
+                            class="absolute top-4 right-4 p-2 rounded-mat-corner-full hover:bg-surface-container-high text-on-surface-variant"
                             aria-label="Close event details"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                                 <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" />
                             </svg>
                         </button>
-                        <h2 class="text-3xl font-bold text-on-surface mb-2">{currentEvent.title}</h2>
-                        <p class="text-sm text-on-surface-variant mb-4">
+                        <h2 class="text-headline-medium text-on-surface mb-2">{currentEvent.title}</h2>
+                        <p class="text-body-small text-on-surface-variant mb-4">
                             Organisé par : {currentEvent.organization?.name || currentEvent.organizer?.name || currentEvent.organizer?.email || 'N/A'}
                         </p>
 
-                        <div class="space-y-3 text-on-surface-variant">
-                            <p><strong class="text-on-surface">Date:</strong> {formatDate(currentEvent.date)}</p>
-                            <p><strong class="text-on-surface">Adresse:</strong> {currentEvent.address}, {currentEvent.city}, {currentEvent.region}</p>
+                        <div class="space-y-3 text-body-medium text-on-surface-variant">
+                            <p><strong class="text-on-surface font-medium">Date:</strong> {formatDate(currentEvent.date)}</p>
+                            <p><strong class="text-on-surface font-medium">Adresse:</strong> {currentEvent.address}, {currentEvent.city}, {currentEvent.region}</p>
                             <div>
-                                <strong class="text-on-surface">Description:</strong>
-                                <p class="mt-1 whitespace-pre-wrap">{currentEvent.description}</p>
+                                <strong class="text-on-surface font-medium">Description:</strong>
+                                <p class="mt-1 whitespace-pre-wrap text-body-medium">{currentEvent.description}</p>
                             </div>
-                            <p><strong class="text-on-surface">Coordonnées:</strong> Lat: {currentEvent.lat}, Lng: {currentEvent.lng}</p>
+                            <p><strong class="text-on-surface font-medium">Coordonnées:</strong> Lat: {currentEvent.lat}, Lng: {currentEvent.lng}</p>
                         </div>
                         <Show when={currentEvent.lat && currentEvent.lng}>
                             <div class="mt-4">
@@ -92,7 +91,7 @@ const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
                                     href={`https://www.google.com/maps/search/?api=1&query=${currentEvent.lat},${currentEvent.lng}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-on-primary bg-primary hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-focus"
+                                    class="inline-flex items-center px-6 py-2.5 border border-transparent text-on-primary bg-primary hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-focus rounded-mat-corner-full font-label-large"
                                 >
                                     Voir sur la carte
                                     <svg class="ml-2 -mr-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -104,8 +103,8 @@ const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
 
                         <Show when={isCurrentUserAdminOfEventOrg()}>
                             <div class="mt-4 pt-4 border-t border-outline-variant">
-                                <h4 class="text-md font-semibold text-on-surface mb-1">Intérêt (Organisateur)</h4>
-                                <p class="text-sm text-on-surface-variant">
+                                <h4 class="text-title-small font-semibold text-on-surface mb-1">Intérêt (Organisateur)</h4>
+                                <p class="text-body-medium text-on-surface-variant">
                                     Nombre de personnes intéressées : {interestCount.loading ? 'Chargement...' : interestCount() ?? 0}
                                 </p>
                             </div>
@@ -113,8 +112,8 @@ const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
 
                         <Show when={interestedOrgMembers() && interestedOrgMembers()!.length > 0 && !isCurrentUserAdminOfEventOrg() && currentEvent.organizationId && currentUserOrgIds().includes(currentEvent.organizationId)}>
                             <div class="mt-4 pt-4 border-t border-outline-variant">
-                                <h4 class="text-md font-semibold text-on-surface mb-1">Membres de votre organisation intéressés :</h4>
-                                <ul class="list-disc list-inside text-sm text-on-surface-variant">
+                                <h4 class="text-title-small font-semibold text-on-surface mb-1">Membres de votre organisation intéressés :</h4>
+                                <ul class="list-disc list-inside text-body-medium text-on-surface-variant">
                                     <For each={interestedOrgMembers()}>
                                         {(member: InterestedUserForEvent) => (
                                             <li>{member.name || member.email}</li>
