@@ -135,6 +135,14 @@ export const authOptions: SolidAuthConfig = {
                 }
             }
 
+            if (trigger === "session" && token.id) {
+                const dbUser = await db.user.findUnique({ where: { id: token.id as string } });
+                if (dbUser) {
+                    token.twoFactorEnabled = dbUser.twoFactorEnabled;
+                    token.role = dbUser.role;
+                }
+            }
+
             if (trigger === "update" && updateSessionData) {
                 if ((updateSessionData as any).action === "USER_UPDATED_2FA_STATUS") {
                     const dbUser = await db.user.findUnique({ where: { id: token.id as string } });
@@ -173,4 +181,3 @@ export const authOptions: SolidAuthConfig = {
     },
     debug: process.env.NODE_ENV === "development",
 };
-

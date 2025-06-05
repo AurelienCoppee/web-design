@@ -1,5 +1,5 @@
 import { Show, For, type VoidComponent, Setter, Accessor, createSignal, createEffect, createMemo } from "solid-js";
-import { createAsync, useSubmission, revalidate } from "@solidjs/router";
+import { createAsync, useAction, useSubmission, revalidate } from "@solidjs/router";
 import { getOrganizationMembers, type OrganizationMembershipWithUser } from "~/server/queries/organizationQueries";
 import { addOrganizationMemberAction } from "~/server/actions/organizationActions";
 
@@ -18,6 +18,7 @@ const ManageOrganizationModal: VoidComponent<ManageOrganizationModalProps> = (pr
     const [newMemberEmail, setNewMemberEmail] = createSignal("");
     const [newMemberRole, setNewMemberRole] = createSignal<"MEMBER" | "ADMIN">("MEMBER");
 
+    const execAddMember = useAction(addOrganizationMemberAction);
     const addMemberSubmission = useSubmission(addOrganizationMemberAction);
 
     createEffect(() => {
@@ -38,9 +39,13 @@ const ManageOrganizationModal: VoidComponent<ManageOrganizationModalProps> = (pr
         formData.append("organizationId", organizationId()!);
         formData.append("email", newMemberEmail());
         formData.append("role", newMemberRole());
-        await addOrganizationMemberAction(formData);
-        if (!addMemberSubmission.error) {
+
+        const result = await execAddMember(formData);
+
+        if (result?.success) {
             setNewMemberEmail("");
+            setNewMemberRole("MEMBER");
+            revalidate(getOrganizationMembers.keyFor(organizationId()!));
         }
     };
 
@@ -90,12 +95,6 @@ const ManageOrganizationModal: VoidComponent<ManageOrganizationModalProps> = (pr
                         <button type="submit" disabled={addMemberSubmission.pending} class="px-6 py-2.5 bg-primary text-on-primary rounded-mat-corner-full hover:brightness-110 disabled:opacity-50 font-label-large">
                             {addMemberSubmission.pending ? "Ajout..." : "Ajouter Membre"}
                         </button>
-                        <Show when={addMemberSubmission.error}>
-                            <p class="text-body-small text-error">{addMemberSubmission.error.message || "Erreur lors de l'ajout."}</p>
-                        </Show>
-                        <Show when={addMemberSubmission.result?.success && !addMemberSubmission.error}>
-                            <p class="text-body-small text-green-500">{addMemberSubmission.result.message}</p>
-                        </Show>
                     </form>
                 </div>
             </div>

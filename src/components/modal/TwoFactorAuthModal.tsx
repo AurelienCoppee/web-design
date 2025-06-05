@@ -1,4 +1,4 @@
-import { createSignal, Show, VoidComponent, Setter, Accessor, createEffect, onMount } from "solid-js";
+import { createSignal, Show, VoidComponent, Setter, Accessor, createEffect } from "solid-js";
 import { signIn } from "@auth/solid-start/client";
 import { useAction, useSubmission, revalidate } from "@solidjs/router";
 import { request2FASetupDetailsAction, verifyAndEnable2FAAction } from "~/server/actions/authActions";
@@ -132,21 +132,23 @@ const TwoFactorAuthModal: VoidComponent<TwoFactorAuthModalProps> = (props) => {
                                 <p class="text-body-medium text-on-surface-variant text-center py-8">Chargement des détails 2FA...</p>
                             </Show>
                             <Show when={!requestDetailsSubmission.pending && (otpauthUrl() || qrCodeDataUrl())}>
-                                <p class="text-body-medium text-on-surface-variant">Scannez ce QR code avec votre application d'authentification :</p>
-                                <Show when={qrCodeDataUrl()} fallback={<p class="text-body-medium text-on-surface-variant">Génération du QR code...</p>}>
-                                    <div class="p-2 bg-white inline-block my-2 rounded-mat-corner-small">
-                                        <img src={qrCodeDataUrl()} alt="QR Code pour 2FA" class="block mx-auto" />
-                                    </div>
-                                </Show>
-                                <Show when={!qrCodeDataUrl() && otpauthUrl()}>
-                                    <p class="text-body-small text-on-surface-variant">La génération du QR code a échoué, vous pouvez entrer cette clé manuellement :</p>
-                                </Show>
-                                <Show when={otpauthUrl()}>
-                                    <p class="text-label-small text-on-surface-variant">Clé: <code class="bg-surface-variant text-on-surface-variant p-1 rounded-mat-corner-extra-small text-xs break-all">{otpauthUrl() ? new URL(otpauthUrl()).searchParams.get("secret") : ""}</code></p>
-                                </Show>
+                                <div class="text-center">
+                                    <p class="text-body-medium text-on-surface-variant">Scannez ce QR code avec votre application d'authentification :</p>
+                                    <Show when={qrCodeDataUrl()} fallback={<p class="text-body-medium text-on-surface-variant">Génération du QR code...</p>}>
+                                        <div class="p-2 bg-white inline-block my-2 rounded-mat-corner-small">
+                                            <img src={qrCodeDataUrl()} alt="QR Code pour 2FA" class="block mx-auto" />
+                                        </div>
+                                    </Show>
+                                    <Show when={!qrCodeDataUrl() && otpauthUrl()}>
+                                        <p class="text-body-small text-on-surface-variant">La génération du QR code a échoué, vous pouvez entrer cette clé manuellement :</p>
+                                    </Show>
+                                    <Show when={otpauthUrl()}>
+                                        <p class="text-label-small text-on-surface-variant">Clé: <code class="bg-surface-variant text-on-surface-variant p-1 rounded-mat-corner-extra-small text-xs break-all">{otpauthUrl() ? new URL(otpauthUrl()).searchParams.get("secret") : ""}</code></p>
+                                    </Show>
+                                </div>
                                 <div>
                                     <label for="otp-setup" class="block text-label-large text-on-surface-variant">Code de Vérification (6 chiffres)</label>
-                                    <input ref={otpInputRef} type="text" id="otp-setup" inputmode="numeric" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-mat-corner-small border-outline bg-surface text-on-surface shadow-sm focus:border-primary py-2 px-3" autocomplete="one-time-code" />
+                                    <input ref={otpInputRef} type="text" id="otp-setup" inputmode="numeric" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-mat-corner-small border-outline bg-surface text-on-surface shadow-sm focus:border-primary py-2 px-3" autocomplete="one-time-code" />
                                 </div>
                             </Show>
                             <Show when={verifyEnableSubmission.result && !verifyEnableSubmission.error}>
@@ -167,7 +169,7 @@ const TwoFactorAuthModal: VoidComponent<TwoFactorAuthModalProps> = (props) => {
                             <p class="text-body-medium text-on-surface-variant">Entrez le code de votre application d'authentification.</p>
                             <div>
                                 <label for="otp-login" class="block text-label-large text-on-surface-variant">Code 2FA (6 chiffres)</label>
-                                <input ref={otpInputRef} type="text" id="otp-login" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-mat-corner-small border-outline bg-surface text-on-surface shadow-sm focus:border-primary py-2 px-3" autocomplete="one-time-code" />
+                                <input ref={otpInputRef} type="text" id="otp-login" value={otp()} onInput={(e) => setOtp(e.currentTarget.value)} required pattern="\d{6}" title="Le code doit être composé de 6 chiffres" class="mt-1 block w-full rounded-mat-corner-small border-outline bg-surface text-on-surface shadow-sm focus:border-primary py-2 px-3" autocomplete="one-time-code" />
                             </div>
                             <Show when={verifyEnableSubmission.error}>
                                 <p class="text-error text-body-small text-center">{(verifyEnableSubmission.error as any)?.message || "Code OTP invalide ou erreur."}</p>
