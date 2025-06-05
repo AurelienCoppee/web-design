@@ -93,10 +93,24 @@ const Home: VoidComponent = () => {
     return Object.entries(groups).sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime());
   });
 
-  const canCreateEvent = createMemo(() => {
+  const canShowCreateEventFAB = createMemo(() => {
     const user = sessionData()?.user;
     return user && (user.role === "ADMIN" || (user.administeredOrganizations && user.administeredOrganizations.length > 0));
   });
+
+  const isFabActionDisabled = createMemo(() => {
+    const user = sessionData()?.user;
+    if (!user) return true;
+    return user.provider === "credentials" && !user.isTwoFactorAuthenticated;
+  });
+
+  const fabActionTitle = createMemo(() => {
+    if (isFabActionDisabled()) {
+      return "Veuillez activer la 2FA et vous reconnecter pour créer un événement.";
+    }
+    return "Ajouter un nouvel événement";
+  });
+
 
   const handleEventCreated = () => revalidate(getUpcomingEvents.key);
 
@@ -209,7 +223,13 @@ const Home: VoidComponent = () => {
             )}
           </For>
         </div>
-        <Show when={canCreateEvent()}><AddEventFAB onClick={() => setIsCreateEventModalOpen(true)} /></Show>
+        <Show when={canShowCreateEventFAB()}>
+          <AddEventFAB
+            onClick={() => setIsCreateEventModalOpen(true)}
+            disabled={isFabActionDisabled()}
+            title={fabActionTitle()}
+          />
+        </Show>
       </div>
       <Suspense fallback={<div class="fixed inset-0 bg-scrim/30 flex items-center justify-center text-on-primary-container p-4 rounded-mat-corner-medium">Chargement du modal...</div>}>
         <CreateEventModal isOpen={isCreateEventModalOpen} setIsOpen={setIsCreateEventModalOpen} onEventCreated={handleEventCreated} />

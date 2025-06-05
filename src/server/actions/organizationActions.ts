@@ -179,6 +179,10 @@ export const addOrganizationMemberAction = action(async (formData: FormData) => 
         const userToAdd = await db.user.findUnique({ where: { email } });
         if (!userToAdd) return json({ error: "Utilisateur à ajouter non trouvé." }, { status: 404 });
 
+        if (role === 'ADMIN' && !userToAdd.twoFactorEnabled) {
+            return json({ error: "Cet utilisateur doit activer la 2FA avant de pouvoir être ajouté comme administrateur." }, { status: 400 });
+        }
+
         const existingMembership = await db.organizationMembership.findUnique({
             where: { organizationId_userId: { organizationId, userId: userToAdd.id } }
         });
@@ -193,3 +197,37 @@ export const addOrganizationMemberAction = action(async (formData: FormData) => 
         return json({ error: "Erreur interne du serveur." }, { status: 500 });
     }
 }, "addOrganizationMember");
+
+const leaveOrganizationSchema = z.object({ organizationId: z.string() });
+
+export const leaveOrganizationAction = action(async (input: z.infer<typeof leaveOrganizationSchema>) => {
+    "use server";
+    const reqEvent = getRequestEvent();
+    if (!reqEvent) return json({ error: "Erreur de contexte serveur" }, { status: 500 });
+    const session = await getServerSessionFromAuth(reqEvent.request, authOptions);
+    if (!session?.user?.id) return json({ error: "Utilisateur non connecté." }, { status: 403 });
+
+    const { organizationId } = input;
+
+    const membership = await db.organizationMembership.findUnique({
+        where: { organizationId_userId: { organizationId, userId: session.user.id } }
+    });
+
+    if (!membership) return json({ error: "Vous n'êtes pas membre de cette organisation." }, { status: 404 });
+
+    if (membership.role === 'ADMIN') {
+        const otherAdmins = await db.organizationMembership.count({
+            where: { organizationId, role: 'ADMIN', NOT: { userId: session.user.id } }
+        });
+        if (otherAdmins === 0) {
+            return json({ error: "Vous êtes le dernier administrateur. Veuillez nommer un autre administrateur avant de quitter." }, { status: 400 });
+        }
+    }
+
+    await db.organizationMembership.delete({
+        where: { organizationId_userId: { organizationId, userId: session.user.id } }
+    });
+
+    return json({ success: true, message: "Vous avez quitté l'organisation." }, { revalidate: getAuthSession.key });
+
+}, "leaveOrganizationAction");

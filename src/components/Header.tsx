@@ -9,11 +9,13 @@ import {
     Suspense,
     For
 } from "solid-js";
-import { A, revalidate } from "@solidjs/router";
+import { A, revalidate, useAction } from "@solidjs/router";
 import { signOut } from "@auth/solid-start/client";
 import { createAsync } from "@solidjs/router";
 import { getAuthSession } from "~/server/queries/sessionQueries";
 import type { Session } from "@auth/core/types";
+import { leaveOrganizationAction } from "~/server/actions/organizationActions";
+
 
 const LoginSignupModal = lazy(() => import("./modal/LoginSignupModal"));
 const TwoFactorAuthModal = lazy(() => import("./modal/TwoFactorAuthModal"));
@@ -51,6 +53,17 @@ const Header: Component = () => {
         const user = (res as Session | null)?.user;
         return user;
     });
+
+    const execLeaveOrg = useAction(leaveOrganizationAction);
+
+    const handleLeaveOrganization = async (orgId: string) => {
+        if (confirm("Êtes-vous sûr de vouloir quitter cette organisation ?")) {
+            await execLeaveOrg({ organizationId: orgId });
+            setMenuOpen(false);
+            revalidate(getAuthSession.key);
+        }
+    };
+
 
     const profileImageUrl = createMemo(() => currentUser()?.image);
     const [profileImageError, setProfileImageError] = createSignal(false);
@@ -152,16 +165,33 @@ const Header: Component = () => {
     const showUserSpecificIcon = createMemo(() => !!currentUser());
     const conditionForImageTag = createMemo(() => !!profileImageUrl() && !profileImageError());
 
-    const canRequestOrganization = createMemo(() => {
+    const showCreateOrganizationButton = createMemo(() => {
+        const user = currentUser();
+        if (!user) return false;
+        if (user.role === 'ADMIN' || (user.administeredOrganizations && user.administeredOrganizations.length > 0)) {
+            return false;
+        }
+        return true;
+    });
+
+    const canPerformSecureAction = createMemo(() => {
         const user = currentUser();
         if (!user) return false;
         if (user.provider === "credentials" && !user.isTwoFactorAuthenticated) return false;
         return true;
     });
-    const createOrganizationButtonTitle = createMemo(() => {
-        if (!currentUser()) return "Veuillez vous connecter.";
-        if (currentUser()?.provider === "credentials" && !currentUser()?.isTwoFactorAuthenticated) return "Veuillez vérifier votre session 2FA pour créer une organisation.";
-        return "Créer une Organisation";
+
+    const secureActionTitle = createMemo(() => {
+        if (!canPerformSecureAction()) {
+            return "Veuillez activer et vérifier l'authentification à deux facteurs (2FA) pour effectuer cette action.";
+        }
+        return "";
+    });
+
+    const memberOrganizations = createMemo(() => {
+        const user = currentUser();
+        if (!user || !user.organizationMemberships) return [];
+        return user.organizationMemberships.filter(m => m.role === 'MEMBER');
     });
 
     return (
@@ -226,13 +256,13 @@ const Header: Component = () => {
                                         </li>
                                     </Show>
 
-                                    <Show when={currentUser()?.role !== 'ADMIN'}>
+                                    <Show when={showCreateOrganizationButton()}>
                                         <li>
                                             <button
                                                 onClick={openCreateOrganizationModal}
-                                                disabled={!canRequestOrganization()}
+                                                disabled={!canPerformSecureAction()}
                                                 class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large disabled:opacity-50 disabled:cursor-not-allowed"
-                                                title={createOrganizationButtonTitle()}
+                                                title={secureActionTitle() || "Créer une Organisation"}
                                             >
                                                 Créer une Organisation
                                             </button>
@@ -250,6 +280,24 @@ const Header: Component = () => {
                                         </li>
                                     </Show>
 
+                                    <Show when={memberOrganizations().length > 0}>
+                                        <hr class="border-outline-variant my-1" />
+                                        <li class="px-3 py-2 text-label-medium text-on-surface-variant/70">Mes Adhésions :</li>
+                                        <For each={memberOrganizations()}>
+                                            {(membership) => (
+                                                <li class="flex items-center justify-between px-3 py-2">
+                                                    <span class="font-label-large">{membership.organization.name}</span>
+                                                    <button
+                                                        onClick={() => handleLeaveOrganization(membership.organization.id)}
+                                                        class="text-label-small text-error hover:underline"
+                                                    >
+                                                        Quitter
+                                                    </button>
+                                                </li>
+                                            )}
+                                        </For>
+                                    </Show>
+
                                     <Show when={currentUser()?.administeredOrganizations && currentUser()!.administeredOrganizations!.length > 0}>
                                         <hr class="border-outline-variant my-1" />
                                         <li class="px-3 py-2 text-label-medium text-on-surface-variant/70">Mes Organisations (Admin):</li>
@@ -258,7 +306,9 @@ const Header: Component = () => {
                                                 <li>
                                                     <button
                                                         onClick={() => openManageOrganizationModal(org.id)}
-                                                        class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large"
+                                                        disabled={!canPerformSecureAction()}
+                                                        title={secureActionTitle() || `Gérer ${org.name}`}
+                                                        class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
                                                         Gérer "{org.name}"
                                                     </button>

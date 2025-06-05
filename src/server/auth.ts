@@ -6,7 +6,7 @@ import { db } from "~/lib/db";
 import bcrypt from "bcryptjs";
 import { authenticator } from "otplib";
 import type { User as AuthUser } from "@auth/core/types";
-import type { Organization } from "@prisma/client";
+import type { Organization, OrganizationMembership } from "@prisma/client";
 
 declare module "@auth/core/types" {
     interface Session {
@@ -17,6 +17,7 @@ declare module "@auth/core/types" {
             isTwoFactorAuthenticated: boolean;
             provider?: string;
             administeredOrganizations?: Pick<Organization, 'id' | 'name'>[];
+            organizationMemberships?: (Pick<OrganizationMembership, 'role'> & { organization: Pick<Organization, 'id' | 'name'> })[];
         } & Omit<AuthUser, "id">;
     }
     interface User {
@@ -35,6 +36,7 @@ declare module "@auth/core/jwt" {
         isTwoFactorAuthenticated?: boolean;
         provider?: string;
         administeredOrganizations?: Pick<Organization, 'id' | 'name'>[];
+        organizationMemberships?: (Pick<OrganizationMembership, 'role'> & { organization: Pick<Organization, 'id' | 'name'> })[];
     }
 }
 
@@ -112,11 +114,12 @@ export const authOptions: SolidAuthConfig = {
                 token.twoFactorEnabled = !!user.twoFactorEnabled;
                 token.provider = account.provider;
 
-                const adminMemberships = await db.organizationMembership.findMany({
-                    where: { userId: user.id, role: 'ADMIN' },
-                    include: { organization: { select: { id: true, name: true } } }
+                const memberships = await db.organizationMembership.findMany({
+                    where: { userId: user.id },
+                    select: { role: true, organization: { select: { id: true, name: true } } }
                 });
-                token.administeredOrganizations = adminMemberships.map(m => m.organization);
+                token.organizationMemberships = memberships;
+                token.administeredOrganizations = memberships.filter(m => m.role === 'ADMIN').map(m => m.organization);
 
 
                 if (account.provider !== "credentials") {
@@ -143,11 +146,12 @@ export const authOptions: SolidAuthConfig = {
                     token.role = (updateSessionData as any).role;
                 }
                 if ((updateSessionData as any).action === "USER_ORGANIZATION_MEMBERSHIP_UPDATED") {
-                    const adminMemberships = await db.organizationMembership.findMany({
-                        where: { userId: token.id as string, role: 'ADMIN' },
-                        include: { organization: { select: { id: true, name: true } } }
+                    const memberships = await db.organizationMembership.findMany({
+                        where: { userId: token.id as string },
+                        select: { role: true, organization: { select: { id: true, name: true } } }
                     });
-                    token.administeredOrganizations = adminMemberships.map(m => m.organization);
+                    token.organizationMemberships = memberships;
+                    token.administeredOrganizations = memberships.filter(m => m.role === 'ADMIN').map(m => m.organization);
                 }
             }
             return token;
@@ -162,6 +166,7 @@ export const authOptions: SolidAuthConfig = {
             if (token.email) session.user.email = token.email;
             if (token.picture) session.user.image = token.picture as string | null | undefined;
             session.user.administeredOrganizations = token.administeredOrganizations || [];
+            session.user.organizationMemberships = token.organizationMemberships || [];
             return session;
         },
     },
