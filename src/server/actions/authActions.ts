@@ -14,9 +14,12 @@ const emailPasswordSchema = z.object({
     password: z.string().min(1, "Le mot de passe est requis."),
 });
 
-const createUserSchema = emailPasswordSchema.extend({
+const createUserSchema = z.object({
+    email: z.string().email("Format d'email invalide."),
+    originalPassword: z.string().min(1, "Le mot de passe original est requis."),
     confirmPassword: z.string().min(1, "La confirmation du mot de passe est requise."),
-}).refine(data => data.password === data.confirmPassword, {
+    emailVerificationCode: z.string().optional(),
+}).refine(data => data.originalPassword === data.confirmPassword, {
     message: "Les mots de passe ne correspondent pas.",
     path: ["confirmPassword"],
 });
@@ -43,7 +46,7 @@ export const startAuthFlowAction = action(async (input: z.infer<typeof emailPass
                 {
                     status: "NEW_USER_CONFIRM_PASSWORD",
                     email: email,
-                    message: "Nouvel utilisateur. Veuillez confirmer votre mot de passe.",
+                    message: "Nouveau compte. Veuillez confirmer vos informations.",
                 },
                 { revalidate: "nothing" }
             );
@@ -68,28 +71,11 @@ export const startAuthFlowAction = action(async (input: z.infer<typeof emailPass
                 { revalidate: "nothing" }
             );
         } else {
-            let secret = user.twoFactorSecret;
-            if (!secret) {
-                secret = authenticator.generateSecret();
-                await db.user.update({
-                    where: { id: user.id },
-                    data: { twoFactorSecret: secret },
-                });
-            }
-            const otpauthUrl = authenticator.keyuri(user.email!, "Ralvo", secret);
-            let qrCodeDataUrl = "";
-            try {
-                qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
-            } catch (err) {
-                console.error("Erreur génération QR code (startAuthFlowAction):", err);
-            }
             return json(
                 {
                     status: "LOGIN_SUCCESS_PROMPT_2FA_SETUP",
                     message: "Connexion réussie. Voulez-vous configurer l'A2F maintenant ?",
                     email: user.email,
-                    otpauthUrl: otpauthUrl,
-                    qrCodeDataUrl: qrCodeDataUrl,
                 },
                 { revalidate: "nothing" }
             );
@@ -102,11 +88,12 @@ export const startAuthFlowAction = action(async (input: z.infer<typeof emailPass
 
 
 export const createUserAction = action(async (input: z.infer<typeof createUserSchema>) => {
+    "use server";
     const validation = createUserSchema.safeParse(input);
     if (!validation.success) {
-        return json({ error: "Données invalides.", details: validation.error.format() }, { status: 400, revalidate: "nothing" });
+        return json({ error: "Données d'inscription invalides.", details: validation.error.format() }, { status: 400, revalidate: "nothing" });
     }
-    const { email, password } = validation.data;
+    const { email, originalPassword, emailVerificationCode } = validation.data;
 
     try {
         const existingUser = await db.user.findUnique({ where: { email } });
@@ -114,34 +101,21 @@ export const createUserAction = action(async (input: z.infer<typeof createUserSc
             return json({ error: "Cet email est déjà utilisé." }, { status: 409, revalidate: "nothing" });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const secret = authenticator.generateSecret();
-
+        const hashedPassword = await bcrypt.hash(originalPassword, 10);
         const newUser = await db.user.create({
             data: {
                 email,
                 hashedPassword,
-                twoFactorSecret: secret,
                 twoFactorEnabled: false,
                 role: "USER",
             },
         });
-
-        const otpauthUrl = authenticator.keyuri(newUser.email!, "Ralvo", secret);
-        let qrCodeDataUrl = "";
-        try {
-            qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
-        } catch (err) {
-            console.error("Erreur génération QR code (createUserAction):", err);
-        }
 
         return json(
             {
                 status: "SIGNUP_SUCCESS_PROMPT_2FA_SETUP",
                 message: "Inscription réussie ! Voulez-vous configurer l'A2F maintenant ?",
                 email: newUser.email,
-                otpauthUrl: otpauthUrl,
-                qrCodeDataUrl: qrCodeDataUrl,
             },
             { status: 201, revalidate: "nothing" }
         );
@@ -156,16 +130,31 @@ export const createUserAction = action(async (input: z.infer<typeof createUserSc
 }, "createUserAction");
 
 
-export const request2FASetupDetailsAction = action(async () => {
+export const request2FASetupDetailsAction = action(async (formData?: FormData) => {
+    "use server";
     const reqEvent = getRequestEvent();
     if (!reqEvent) return json({ error: "Contexte serveur manquant" }, { status: 500, revalidate: "nothing" });
-    const session = await getServerSessionFromAuth(reqEvent.request, authOptions);
 
-    if (!session?.user?.email) {
-        return json({ error: "Non authentifié." }, { status: 401, revalidate: "nothing" });
+    let userEmail: string | undefined | null;
+    const currentSolidAuthSession = await getAuthSession();
+
+    if (currentSolidAuthSession?.user?.email) {
+        userEmail = currentSolidAuthSession.user.email;
+    } else {
+        const authJsSession = await getServerSessionFromAuth(reqEvent.request, authOptions);
+        userEmail = authJsSession?.user?.email;
     }
 
-    let user = await db.user.findUnique({ where: { email: session.user.email } });
+    const emailFromForm = formData?.get("email") as string | undefined;
+    if (emailFromForm && !userEmail) {
+        userEmail = emailFromForm;
+    }
+
+    if (!userEmail) {
+        return json({ error: "Email utilisateur non disponible pour la configuration 2FA." }, { status: 400, revalidate: "nothing" });
+    }
+
+    let user = await db.user.findUnique({ where: { email: userEmail } });
     if (!user) {
         return json({ error: "Utilisateur non trouvé." }, { status: 404, revalidate: "nothing" });
     }
@@ -182,15 +171,16 @@ export const request2FASetupDetailsAction = action(async () => {
     const otpauthUrl = authenticator.keyuri(user.email!, "Ralvo", secret);
     try {
         const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
-        return json({ otpauthUrl, qrCodeDataUrl, email: user.email }, { revalidate: "nothing" });
+        return json({ otpauthUrl, qrCodeDataUrl, email: user.email! }, { revalidate: "nothing" });
     } catch (err) {
         console.error("Erreur génération QR code (request2FASetupDetailsAction):", err);
-        return json({ error: "Erreur lors de la génération du QR code.", otpauthUrl, email: user.email }, { status: 500, revalidate: "nothing" });
+        return json({ error: "Erreur lors de la génération du QR code.", otpauthUrl, email: user.email! }, { status: 500, revalidate: "nothing" });
     }
 }, "request2FASetupDetailsAction");
 
 
 export const verifyAndEnable2FAAction = action(async (input: z.infer<typeof verify2FASchema>) => {
+    "use server";
     const validation = verify2FASchema.safeParse(input);
     if (!validation.success) {
         return json({ error: "Données invalides.", details: validation.error.format() }, { status: 400, revalidate: "nothing" });
@@ -215,7 +205,7 @@ export const verifyAndEnable2FAAction = action(async (input: z.infer<typeof veri
     });
 
     return json(
-        { status: "2FA_SETUP_COMPLETE", message: "Authentification à deux facteurs activée avec succès !" },
+        { status: "2FA_SETUP_COMPLETE", message: "Authentification à deux facteurs activée avec succès ! Veuillez vous connecter pour l'utiliser." },
         { revalidate: [getAuthSession.key] }
     );
 }, "verifyAndEnable2FAAction");

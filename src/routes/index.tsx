@@ -12,8 +12,8 @@ import {
 import { Meta, Title } from "@solidjs/meta";
 import { createAsync, useSubmissions, revalidate } from "@solidjs/router";
 import AddEventFAB from "~/components/AddEventFAB";
-const CreateEventModal = lazy(() => import("~/components/CreateEventModal"));
-const EventDetailModal = lazy(() => import("~/components/EventDetailModal"));
+const CreateEventModal = lazy(() => import("~/components/modal/CreateEventModal"));
+const EventDetailModal = lazy(() => import("~/components/modal/EventDetailModal"));
 import { getUpcomingEvents, type EventWithOrganizer } from "~/server/queries/eventQueries";
 import { getAuthSession } from "~/server/queries/sessionQueries";
 import { createEventAction } from "~/server/actions/eventActions";

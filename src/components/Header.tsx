@@ -11,20 +11,24 @@ import {
 import { A, revalidate } from "@solidjs/router";
 import { signOut } from "@auth/solid-start/client";
 import { createAsync } from "@solidjs/router";
-import type { AuthStep } from "./AuthForm";
 import { getAuthSession } from "~/server/queries/sessionQueries";
 import type { Session } from "@auth/core/types";
 
-const AuthModal = lazy(() => import("./AuthModal"));
-const BecomeOrganizerModal = lazy(() => import("./BecomeOrganizerModal"));
+const LoginSignupModal = lazy(() => import("./modal/LoginSignupModal"));
+const TwoFactorAuthModal = lazy(() => import("./modal/TwoFactorAuthModal"));
+const BecomeOrganizerModal = lazy(() => import("./modal/BecomeOrganizerModal"));
+
 
 const Header: Component = () => {
     const [menuOpen, setMenuOpen] = createSignal(false);
     let buttonRef: HTMLButtonElement | undefined;
     let menuPopupRef: HTMLDivElement | undefined;
 
-    const [isAuthModalOpen, setIsAuthModalOpen] = createSignal(false);
-    const [authModalInitialStep, setAuthModalInitialStep] = createSignal<AuthStep>("INITIAL");
+    const [isLoginSignupModalOpen, setIsLoginSignupModalOpen] = createSignal(false);
+    const [isTwoFactorModalOpen, setIsTwoFactorModalOpen] = createSignal(false);
+    const [twoFactorModalMode, setTwoFactorModalMode] = createSignal<"SETUP" | "LOGIN">("SETUP");
+    const [tempAuthDetails, setTempAuthDetails] = createSignal<{ email: string; passwordForLogin?: string }>({ email: "" });
+
     const [isBecomeOrganizerModalOpen, setIsBecomeOrganizerModalOpen] = createSignal(false);
 
     const sessionResource = createAsync<Session | null, undefined | { loading: true }>(
@@ -34,22 +38,14 @@ const Header: Component = () => {
             initialValue: { loading: true } as any
         }
     );
-
     const currentUser = createMemo(() => {
         const res = sessionResource();
-
-        if ((res as any)?.loading || sessionResource.loading) {
-            return null;
-        }
+        if ((res as any)?.loading || sessionResource.loading) return null;
         const user = (res as Session | null)?.user;
         return user;
     });
 
-    const profileImageUrl = createMemo(() => {
-        const url = currentUser()?.image;
-        return url;
-    });
-
+    const profileImageUrl = createMemo(() => currentUser()?.image);
     const [profileImageError, setProfileImageError] = createSignal(false);
     const [hasAttemptedHydration, setHasAttemptedHydration] = createSignal(false);
 
@@ -58,14 +54,8 @@ const Header: Component = () => {
 
     onMount(() => {
         setHasAttemptedHydration(true);
-
         const handleClickOutside = (e: MouseEvent) => {
-            if (
-                menuPopupRef &&
-                !menuPopupRef.contains(e.target as Node) &&
-                buttonRef &&
-                !buttonRef.contains(e.target as Node)
-            ) {
+            if (menuPopupRef && !menuPopupRef.contains(e.target as Node) && buttonRef && !buttonRef.contains(e.target as Node)) {
                 setMenuOpen(false);
             }
         };
@@ -74,12 +64,8 @@ const Header: Component = () => {
         const storedTheme = localStorage.getItem("theme");
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
         setIsDarkMode(storedTheme === "dark" || (!storedTheme && prefersDark));
-
         const storedContrast = localStorage.getItem("contrast") as ("default" | "mc" | "hc");
-        if (storedContrast && ["default", "mc", "hc"].includes(storedContrast)) {
-            setContrastLevel(storedContrast);
-        }
-
+        if (storedContrast && ["default", "mc", "hc"].includes(storedContrast)) setContrastLevel(storedContrast);
         return () => window.removeEventListener("click", handleClickOutside);
     });
 
@@ -87,26 +73,14 @@ const Header: Component = () => {
         document.documentElement.classList.toggle("dark", isDarkMode());
         localStorage.setItem("theme", isDarkMode() ? "dark" : "light");
     });
-
     createEffect(() => {
         document.documentElement.classList.remove("mc", "hc");
         if (contrastLevel() === "mc") document.documentElement.classList.add("mc");
         else if (contrastLevel() === "hc") document.documentElement.classList.add("hc");
         localStorage.setItem("contrast", contrastLevel());
     });
+    createEffect(() => { setProfileImageError(false); });
 
-    createEffect(() => {
-        const url = profileImageUrl();
-        setProfileImageError(false);
-    });
-
-    const handleThemeToggle = () => setIsDarkMode(!isDarkMode());
-    const handleContrastChange = (event: Event) => {
-        const value = (event.target as HTMLInputElement).value;
-        if (value === "0") setContrastLevel("default");
-        else if (value === "1") setContrastLevel("mc");
-        else if (value === "2") setContrastLevel("hc");
-    };
 
     const handleSignOut = async () => {
         await signOut({ redirect: false });
@@ -114,40 +88,50 @@ const Header: Component = () => {
         revalidate(getAuthSession.key);
     };
 
-    const openLoginModal = () => {
-        setAuthModalInitialStep("INITIAL");
-        setIsAuthModalOpen(true);
+    const openMainLoginModal = () => {
+        setIsLoginSignupModalOpen(true);
         setMenuOpen(false);
     };
 
-    const openActivate2FAModal = () => {
-        setAuthModalInitialStep("SETUP_2FA");
-        setIsAuthModalOpen(true);
-        setMenuOpen(false);
+    const openActivate2FAFromProfile = () => {
+        if (currentUser()?.email) {
+            setTempAuthDetails({ email: currentUser()!.email! });
+            setTwoFactorModalMode("SETUP");
+            setIsTwoFactorModalOpen(true);
+            setMenuOpen(false);
+        }
     };
+
+    const handlePrompt2FAForSetup = (email: string, passwordFromLogin?: string) => {
+        setTempAuthDetails({ email, passwordForLogin: passwordFromLogin });
+        setTwoFactorModalMode("SETUP");
+        setIsTwoFactorModalOpen(true);
+    };
+
+    const handleRequire2FAForLogin = (email: string, validatedPassword?: string) => {
+        setTempAuthDetails({ email, passwordForLogin: validatedPassword });
+        setTwoFactorModalMode("LOGIN");
+        setIsTwoFactorModalOpen(true);
+    };
+
+    const handleAuthSuccess = () => {
+        setIsLoginSignupModalOpen(false);
+        setIsTwoFactorModalOpen(false);
+        revalidate(getAuthSession.key);
+    };
+
 
     const openBecomeOrganizerModal = () => {
         setIsBecomeOrganizerModalOpen(true);
         setMenuOpen(false);
     };
-
     const getContrastValue = () => {
         if (contrastLevel() === "mc") return "1";
         if (contrastLevel() === "hc") return "2";
         return "0";
     };
-
-    const showUserSpecificIcon = createMemo(() => {
-        const show = !!currentUser();
-        return show;
-    });
-
-    const conditionForImageTag = createMemo(() => {
-        const url = profileImageUrl();
-        const error = profileImageError();
-        const shouldShow = !!url && !error;
-        return shouldShow;
-    });
+    const showUserSpecificIcon = createMemo(() => !!currentUser());
+    const conditionForImageTag = createMemo(() => !!profileImageUrl() && !profileImageError());
 
     const canBecomeOrganizer = createMemo(() => {
         const user = currentUser();
@@ -173,7 +157,6 @@ const Header: Component = () => {
         <header class="fixed top-0 left-0 right-0 z-50 text-on-surface bg-surface">
             <div class="flex items-center justify-between h-16 px-4">
                 <A href="/" class="text-2xl font-bold tracking-tight text-on-surface no-underline">RALVO</A>
-
                 <div class="relative ml-auto">
                     <button
                         ref={buttonRef}
@@ -187,7 +170,7 @@ const Header: Component = () => {
                             when={showUserSpecificIcon() && hasAttemptedHydration()}
                             fallback={
                                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor" aria-hidden="true">
-                                    <path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" />
+                                    <path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v-27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" />
                                 </svg>
                             }
                         >
@@ -203,13 +186,7 @@ const Header: Component = () => {
                                     src={profileImageUrl()!}
                                     alt="Photo de profil"
                                     class="rounded-full w-8 h-8 object-cover"
-                                    onError={() => {
-                                        requestAnimationFrame(() => {
-                                            if (hasAttemptedHydration()) {
-                                                setProfileImageError(true);
-                                            }
-                                        });
-                                    }}
+                                    onError={() => { if (hasAttemptedHydration()) setProfileImageError(true); }}
                                 />
                             </Show>
                         </Show>
@@ -224,7 +201,7 @@ const Header: Component = () => {
                                     when={showUserSpecificIcon() && hasAttemptedHydration()}
                                     fallback={
                                         <li>
-                                            <button onClick={openLoginModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Connexion / Inscription</button>
+                                            <button onClick={openMainLoginModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Connexion / Inscription</button>
                                         </li>
                                     }
                                 >
@@ -234,7 +211,7 @@ const Header: Component = () => {
 
                                     <Show when={currentUser()?.provider === 'credentials' && !currentUser()?.twoFactorEnabled}>
                                         <li>
-                                            <button onClick={openActivate2FAModal} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Activer 2FA</button>
+                                            <button onClick={openActivate2FAFromProfile} class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md">Activer 2FA</button>
                                         </li>
                                     </Show>
 
@@ -266,7 +243,7 @@ const Header: Component = () => {
                                 <li class="flex items-center justify-between px-3 py-2">
                                     <span>Thème Sombre</span>
                                     <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" checked={isDarkMode()} onChange={handleThemeToggle} class="sr-only peer" />
+                                        <input type="checkbox" checked={isDarkMode()} onChange={() => setIsDarkMode(!isDarkMode())} class="sr-only peer" />
                                         <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-on-surface after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                                     </label>
                                 </li>
@@ -279,7 +256,12 @@ const Header: Component = () => {
                                         max="2"
                                         step="1"
                                         value={getContrastValue()}
-                                        onInput={handleContrastChange}
+                                        onInput={(e) => {
+                                            const val = (e.target as HTMLInputElement).value;
+                                            if (val === "0") setContrastLevel("default");
+                                            else if (val === "1") setContrastLevel("mc");
+                                            else if (val === "2") setContrastLevel("hc");
+                                        }}
                                         class="w-full h-2 bg-surface-variant rounded-lg appearance-none cursor-pointer accent-primary"
                                     />
                                     <div class="flex justify-between text-xs text-on-surface-variant/70 mt-1">
@@ -295,16 +277,29 @@ const Header: Component = () => {
             </div>
 
             <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
-                <AuthModal
-                    isOpen={isAuthModalOpen}
-                    setIsOpen={setIsAuthModalOpen}
-                    initialAuthStep={authModalInitialStep()}
+                <LoginSignupModal
+                    isOpen={isLoginSignupModalOpen}
+                    setIsOpen={setIsLoginSignupModalOpen}
+                    onSuccess={handleAuthSuccess}
+                    onPrompt2FA={handlePrompt2FAForSetup}
+                    onRequire2FA={handleRequire2FAForLogin}
+                />
+            </Suspense>
+            <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
+                <TwoFactorAuthModal
+                    isOpen={isTwoFactorModalOpen}
+                    setIsOpen={setIsTwoFactorModalOpen}
+                    onSuccess={handleAuthSuccess}
+                    mode={twoFactorModalMode}
+                    email={() => tempAuthDetails().email}
+                    passwordForLogin={() => tempAuthDetails().passwordForLogin}
                 />
             </Suspense>
             <Suspense fallback={<div class="fixed z-[70] bottom-4 right-4 p-2 bg-surface-container-high rounded shadow-mat-level2 text-on-surface-variant">Chargement...</div>}>
                 <BecomeOrganizerModal
                     isOpen={isBecomeOrganizerModalOpen}
                     setIsOpen={setIsBecomeOrganizerModalOpen}
+                    onSuccess={() => revalidate(getAuthSession.key)}
                 />
             </Suspense>
         </header>

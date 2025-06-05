@@ -1,0 +1,253 @@
+import { createSignal, Show, VoidComponent, Setter, Accessor, createEffect } from "solid-js";
+import { signIn } from "@auth/solid-start/client";
+import { useAction, useSubmission, revalidate } from "@solidjs/router";
+import { startAuthFlowAction, createUserAction } from "~/server/actions/authActions";
+import { getAuthSession } from "~/server/queries/sessionQueries";
+
+type LoginSignupStep = "EMAIL_PASSWORD_INPUT" | "SIGNUP_DETAILS_CONFIRM" | "PROMPT_INITIAL_2FA";
+
+interface LoginSignupModalProps {
+    isOpen: Accessor<boolean>;
+    setIsOpen: Setter<boolean>;
+    onSuccess: () => void;
+    onPrompt2FA: (email: string, password?: string) => void;
+    onRequire2FA: (email: string, password?: string) => void;
+}
+
+const LoginSignupModal: VoidComponent<LoginSignupModalProps> = (props) => {
+    const [email, setEmail] = createSignal("");
+    const [password, setPassword] = createSignal("");
+    const [firstPasswordAttempt, setFirstPasswordAttempt] = createSignal("");
+    const [confirmPassword, setConfirmPassword] = createSignal("");
+    const [emailVerificationCode, setEmailVerificationCode] = createSignal("");
+
+    const [step, setStep] = createSignal<LoginSignupStep>("EMAIL_PASSWORD_INPUT");
+    const [errorMessage, setErrorMessage] = createSignal("");
+    const [infoMessage, setInfoMessage] = createSignal("");
+
+    const execStartAuthFlow = useAction(startAuthFlowAction);
+    const execCreateUser = useAction(createUserAction);
+
+    const initialFormSubmission = useSubmission(startAuthFlowAction);
+    const signupConfirmSubmission = useSubmission(createUserAction);
+
+    createEffect(() => {
+        if (!props.isOpen()) {
+            setEmail("");
+            setPassword("");
+            setFirstPasswordAttempt("");
+            setConfirmPassword("");
+            setEmailVerificationCode("");
+            setStep("EMAIL_PASSWORD_INPUT");
+            setErrorMessage("");
+            setInfoMessage("");
+            initialFormSubmission.clear();
+            signupConfirmSubmission.clear();
+        }
+    });
+
+    createEffect(() => {
+        let msg = "";
+        const getErrorMsg = (actionError: any) => {
+            if (!actionError) return "";
+            if (typeof actionError.error === 'string') return actionError.error;
+            if (actionError.error?.message) return actionError.error.message;
+            if (actionError.error?.details) {
+                const details = actionError.error.details;
+                return Object.values(details as Record<string, { _errors: string[] }>)
+                    .map(fieldErrors => fieldErrors._errors.join(", "))
+                    .join("; ") || "Erreur de validation.";
+            }
+            return "Une erreur est survenue.";
+        };
+
+        if (initialFormSubmission.error) msg = getErrorMsg(initialFormSubmission.error);
+        else if (signupConfirmSubmission.error) msg = getErrorMsg(signupConfirmSubmission.error);
+        setErrorMessage(msg);
+    });
+
+
+    const handleInitialSubmit = async (e: SubmitEvent) => {
+        e.preventDefault();
+        setErrorMessage("");
+        setInfoMessage("");
+        setFirstPasswordAttempt(password());
+
+        const result = await execStartAuthFlow({ email: email(), password: password() });
+
+        if (result?.error) {
+            setErrorMessage(result.error.message || result.error.details || result.error);
+            return;
+        }
+
+        if (result?.email) setEmail(result.email);
+
+        if (result?.status === "NEW_USER_CONFIRM_PASSWORD") {
+            setInfoMessage(result.message);
+            setStep("SIGNUP_DETAILS_CONFIRM");
+        } else if (result?.status === "LOGIN_SUCCESS_PROMPT_2FA_SETUP") {
+            setInfoMessage(result.message);
+            setStep("PROMPT_INITIAL_2FA");
+        } else if (result?.status === "2FA_REQUIRED") {
+            props.onRequire2FA(email(), password());
+            props.setIsOpen(false);
+        } else {
+            setErrorMessage("Réponse inattendue du serveur.");
+        }
+    };
+
+    const handleSignupConfirmSubmit = async (e: SubmitEvent) => {
+        e.preventDefault();
+        setErrorMessage("");
+        setInfoMessage("");
+
+        const result = await execCreateUser({
+            email: email(),
+            originalPassword: firstPasswordAttempt(),
+            confirmPassword: confirmPassword(),
+            emailVerificationCode: emailVerificationCode()
+        });
+
+        if (result?.error) {
+            setErrorMessage(result.error.message || result.error.details || result.error);
+            return;
+        }
+
+        if (result?.status === "SIGNUP_SUCCESS_PROMPT_2FA_SETUP") {
+            setInfoMessage(result.message);
+            setPassword(firstPasswordAttempt());
+            setStep("PROMPT_INITIAL_2FA");
+        } else {
+            setErrorMessage("Réponse inattendue après la création du compte.");
+        }
+    };
+
+    const handleGoogleSignIn = async () => {
+        setErrorMessage("");
+        setInfoMessage("Redirection vers Google...");
+        try {
+            await signIn("google", { callbackUrl: window.location.pathname });
+            props.onSuccess();
+            props.setIsOpen(false);
+        } catch (e: any) {
+            console.error("Google Sign-In error:", e);
+            setErrorMessage(e.message || "Une erreur s'est produite lors de la connexion avec Google.");
+            setInfoMessage("");
+        }
+    };
+
+    const handle2FAPromptChoice = async (setupNow: boolean) => {
+        if (setupNow) {
+            props.onPrompt2FA(email(), password());
+            props.setIsOpen(false);
+        } else {
+            setInfoMessage("Connexion en cours...");
+            const result = await signIn("credentials", {
+                redirect: false,
+                email: email(),
+                password: password(),
+            });
+            if (!result?.ok || result?.error) {
+                setErrorMessage(result?.error || "Erreur de connexion. Veuillez vérifier vos identifiants."); //
+                setPassword("");
+            } else {
+                setInfoMessage("Connexion réussie!");
+                revalidate(getAuthSession.key);
+                props.onSuccess();
+                props.setIsOpen(false);
+            }
+        }
+    };
+
+    const handleClose = () => {
+        if (initialFormSubmission.pending || signupConfirmSubmission.pending) return;
+        props.setIsOpen(false);
+    };
+
+    return (
+        <Show when={props.isOpen()}>
+            <div class="fixed inset-0 z-[60] flex items-center justify-center bg-scrim/50 p-4">
+                <div class="bg-surface-container p-6 rounded-lg shadow-mat-level3 w-full max-w-md m-4 relative">
+                    <button
+                        onClick={handleClose}
+                        disabled={initialFormSubmission.pending || signupConfirmSubmission.pending}
+                        class="absolute top-3 right-3 p-2 rounded-full hover:bg-surface-variant text-on-surface-variant"
+                        aria-label="Fermer"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" /></svg>
+                    </button>
+
+                    <Show when={step() === "EMAIL_PASSWORD_INPUT"}>
+                        <form onSubmit={handleInitialSubmit} class="space-y-6">
+                            <h2 class="text-2xl font-bold text-center text-on-surface">Connexion / Inscription</h2>
+                            <div>
+                                <label for="email-initial" class="block text-sm font-medium text-on-surface-variant">Email</label>
+                                <input type="email" id="email-initial" value={email()} onInput={(e) => setEmail(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="email" />
+                            </div>
+                            <div>
+                                <label for="password-initial" class="block text-sm font-medium text-on-surface-variant">Mot de passe</label>
+                                <input type="password" id="password-initial" value={password()} onInput={(e) => setPassword(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="current-password" />
+                            </div>
+                            <button type="submit" disabled={initialFormSubmission.pending} class="w-full rounded-full bg-primary px-4 py-2.5 text-on-primary hover:brightness-110 disabled:opacity-50">
+                                {initialFormSubmission.pending ? "Chargement..." : "Continuer"}
+                            </button>
+                            <div class="relative flex py-3 items-center">
+                                <div class="flex-grow border-t border-outline-variant"></div>
+                                <span class="flex-shrink mx-4 text-on-surface-variant text-sm">Ou</span>
+                                <div class="flex-grow border-t border-outline-variant"></div>
+                            </div>
+                            <button type="button" onClick={handleGoogleSignIn} disabled={initialFormSubmission.pending} class="w-full flex items-center justify-center gap-2 rounded-full border border-outline bg-surface px-4 py-2.5 text-on-surface hover:bg-surface-container-low disabled:opacity-50">
+                                <img src="/images/google.webp" alt="Google logo" class="w-5 h-5" />
+                                Se connecter avec Google
+                            </button>
+                        </form>
+                    </Show>
+
+                    <Show when={step() === "SIGNUP_DETAILS_CONFIRM"}>
+                        <form onSubmit={handleSignupConfirmSubmit} class="space-y-4">
+                            <h2 class="text-2xl font-bold text-on-surface">Finaliser l'inscription</h2>
+                            <p class="text-on-surface-variant">{infoMessage()}</p>
+                            <div>
+                                <label for="email-confirm" class="block text-sm font-medium text-on-surface-variant">Email</label>
+                                <input type="email" id="email-confirm" value={email()} readOnly class="mt-1 block w-full rounded-md border-outline bg-surface-container-low text-on-surface shadow-sm" />
+                            </div>
+                            <div>
+                                <label for="password-original-readonly" class="block text-sm font-medium text-on-surface-variant">Mot de passe initial</label>
+                                <input type="password" id="password-original-readonly" value={firstPasswordAttempt()} readOnly class="mt-1 block w-full rounded-md border-outline bg-surface-container-low text-on-surface shadow-sm" />
+                            </div>
+                            <div>
+                                <label for="password-confirm-signup" class="block text-sm font-medium text-on-surface-variant">Confirmer le mot de passe</label>
+                                <input type="password" id="password-confirm-signup" value={confirmPassword()} onInput={(e) => setConfirmPassword(e.currentTarget.value)} required class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" autocomplete="new-password" />
+                            </div>
+                            <div>
+                                <label for="email-verification-code" class="block text-sm font-medium text-on-surface-variant">Code de vérification Email</label>
+                                <input type="text" id="email-verification-code" value={emailVerificationCode()} onInput={(e) => setEmailVerificationCode(e.currentTarget.value)} placeholder="Code reçu par email (optionnel)" class="mt-1 block w-full rounded-md border-outline bg-surface text-on-surface shadow-sm focus:border-primary" />
+                            </div>
+                            <button type="submit" disabled={signupConfirmSubmission.pending} class="w-full rounded-full bg-primary px-4 py-2.5 text-on-primary hover:brightness-110 disabled:opacity-50">
+                                {signupConfirmSubmission.pending ? "Création..." : "Créer le compte"}
+                            </button>
+                        </form>
+                    </Show>
+
+                    <Show when={step() === "PROMPT_INITIAL_2FA"}>
+                        <div class="space-y-4 text-center">
+                            <h2 class="text-xl font-semibold text-on-surface">Authentification à Deux Facteurs</h2>
+                            <p class="text-on-surface-variant">{infoMessage()}</p>
+                            <p class="text-sm text-on-surface-variant">Nous recommandons d'activer l'authentification à deux facteurs pour sécuriser votre compte.</p>
+                            <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                                <button onClick={() => handle2FAPromptChoice(true)} class="flex-1 rounded-full bg-primary px-4 py-2.5 text-on-primary hover:brightness-110">
+                                    Oui, Configurer 2FA
+                                </button>
+                                <button onClick={() => handle2FAPromptChoice(false)} class="flex-1 rounded-full bg-secondary-container px-4 py-2.5 text-on-secondary-container hover:brightness-110">
+                                    Non, plus tard
+                                </button>
+                            </div>
+                        </div>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+    );
+};
+
+export default LoginSignupModal;
