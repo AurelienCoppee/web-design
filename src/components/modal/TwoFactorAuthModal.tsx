@@ -115,7 +115,7 @@ const TwoFactorAuthModal: VoidComponent<TwoFactorAuthModalProps> = (props) => {
     return (
         <Show when={props.isOpen()}>
             <div class="fixed inset-0 z-[65] flex items-center justify-center bg-scrim/50 p-4">
-                <div class="bg-surface-container p-6 rounded-mat-corner-large shadow-mat-level3 w-full max-w-md m-4 relative">
+                <div class="bg-surface-container p-6 rounded-mat-corner-extra-large shadow-mat-level3 w-full max-w-md m-4 relative">
                     <button
                         onClick={handleClose}
                         disabled={requestDetailsSubmission.pending || verifyEnableSubmission.pending}

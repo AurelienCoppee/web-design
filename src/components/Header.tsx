@@ -205,7 +205,7 @@ const Header: Component = () => {
                     <Show when={menuOpen()}>
                         <div
                             ref={menuPopupRef}
-                            class="absolute right-0 mt-2 w-72 bg-surface-container shadow-mat-level2 rounded-mat-corner-medium z-[70] animate-fade-in p-2"
+                            class="absolute right-0 mt-2 w-72 bg-surface-container shadow-mat-level2 rounded-mat-corner-large z-[70] animate-fade-in p-2"
                         >
                             <ul class="text-on-surface-variant space-y-1">
                                 <Show

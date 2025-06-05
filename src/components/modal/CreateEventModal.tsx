@@ -80,7 +80,7 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
     return (
         <Show when={props.isOpen()}>
             <div class="fixed inset-0 z-[60] flex items-center justify-center bg-scrim/50 p-4">
-                <div class="bg-surface-container p-6 rounded-mat-corner-large shadow-mat-level3 w-full max-w-lg m-4 relative max-h-[90vh] overflow-y-auto">
+                <div class="bg-surface-container p-6 rounded-mat-corner-extra-large shadow-mat-level3 w-full max-w-lg m-4 relative max-h-[90vh] overflow-y-auto">
                     <button
                         onClick={handleClose}
                         disabled={submission.pending}

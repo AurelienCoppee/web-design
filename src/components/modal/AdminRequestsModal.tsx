@@ -42,7 +42,7 @@ const AdminRequestsModal: VoidComponent<AdminRequestsModalProps> = (props) => {
     return (
         <Show when={props.isOpen()}>
             <div class="fixed inset-0 z-[70] flex items-center justify-center bg-scrim/50 p-4">
-                <div class="bg-surface-container p-6 rounded-mat-corner-large shadow-mat-level3 w-full max-w-2xl m-4 relative max-h-[90vh] overflow-y-auto">
+                <div class="bg-surface-container p-6 rounded-mat-corner-extra-large shadow-mat-level3 w-full max-w-2xl m-4 relative max-h-[90vh] overflow-y-auto">
                     <button
                         onClick={handleClose}
                         class="absolute top-4 right-4 p-2 rounded-mat-corner-full hover:bg-surface-container-high text-on-surface-variant disabled:opacity-50"
