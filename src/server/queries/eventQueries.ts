@@ -1,10 +1,10 @@
 import { query } from "@solidjs/router";
 import { db } from "~/lib/db";
-import type { Event as EventTypePrisma, User as UserTypePrisma, Organizations } from "@prisma/client";
+import type { Event as EventTypePrisma, User as UserTypePrisma, Organization } from "@prisma/client";
 
 export type EventWithDetails = EventTypePrisma & {
     organizer?: Pick<UserTypePrisma, 'id' | 'name' | 'email'>;
-    organization?: Pick<Organizations, 'id' | 'name'>;
+    organization?: Pick<Organization, 'id' | 'name'>;
 };
 
 export const getUpcomingEvents = query(async (): Promise<EventWithDetails[]> => {

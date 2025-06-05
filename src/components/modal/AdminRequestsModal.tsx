@@ -43,7 +43,7 @@ const AdminRequestsModal: VoidComponent<AdminRequestsModalProps> = (props) => {
         <Show when={props.isOpen()}>
             <div class="fixed inset-0 z-[70] flex items-center justify-center bg-scrim/50 p-4">
                 <div class="bg-surface-container p-6 rounded-lg shadow-mat-level3 w-full max-w-2xl m-4 relative max-h-[90vh] overflow-y-auto">
-                    <button onClick={handleClose} /* ... close button svg ... */ >
+                    <button onClick={handleClose}>
                         <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" /></svg>
                     </button>
                     <h2 class="text-2xl font-bold text-on-surface mb-6">Demandes de Création d'Organisation en Attente</h2>

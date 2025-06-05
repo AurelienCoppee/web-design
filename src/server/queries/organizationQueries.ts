@@ -1,15 +1,15 @@
 import { query } from "@solidjs/router";
 import { db } from "~/lib/db";
-import type { OrganizationRequests, OrganizationMemberships, User, Organizations } from "@prisma/client";
+import type { OrganizationRequest, OrganizationMembership, User, Organization } from "@prisma/client";
 
-export type OrganizationRequestWithUser = OrganizationRequests & { user: Pick<User, 'id' | 'name' | 'email'> };
-export type OrganizationMembershipWithUser = OrganizationMemberships & { user: Pick<User, 'id' | 'name' | 'email'> };
-export type OrganizationWithMembers = Organizations & { members: OrganizationMembershipWithUser[] };
+export type OrganizationRequestWithUser = OrganizationRequest & { user: Pick<User, 'id' | 'name' | 'email'> };
+export type OrganizationMembershipWithUser = OrganizationMembership & { user: Pick<User, 'id' | 'name' | 'email'> };
+export type OrganizationWithMembers = Organization & { members: OrganizationMembershipWithUser[] };
 
 export const getPendingOrganizationRequests = query(async (): Promise<OrganizationRequestWithUser[]> => {
     "use server";
     try {
-        const requests = await db.organizationRequests.findMany({
+        const requests = await db.organizationRequest.findMany({
             where: { status: 'PENDING' },
             include: { user: { select: { id: true, name: true, email: true } } },
             orderBy: { createdAt: 'asc' },
@@ -24,7 +24,7 @@ export const getPendingOrganizationRequests = query(async (): Promise<Organizati
 export const getOrganizationMembers = query(async (organizationId: string): Promise<OrganizationMembershipWithUser[]> => {
     "use server";
     try {
-        const memberships = await db.organizationMemberships.findMany({
+        const memberships = await db.organizationMembership.findMany({
             where: { organizationId },
             include: { user: { select: { id: true, name: true, email: true } } },
             orderBy: { user: { name: 'asc' } }
@@ -36,10 +36,10 @@ export const getOrganizationMembers = query(async (organizationId: string): Prom
     }
 }, "organizationMembers");
 
-export const getUserAdminOrganizations = query(async (userId: string): Promise<Organizations[]> => {
+export const getUserAdminOrganizations = query(async (userId: string): Promise<Organization[]> => {
     "use server";
     try {
-        const memberships = await db.organizationMemberships.findMany({
+        const memberships = await db.organizationMembership.findMany({
             where: { userId, role: 'ADMIN' },
             include: { organization: true }
         });

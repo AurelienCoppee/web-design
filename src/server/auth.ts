@@ -5,7 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "~/lib/db";
 import bcrypt from "bcryptjs";
 import { authenticator } from "otplib";
-import type { User as AuthUser, Account } from "@auth/core/types";
+import type { User as AuthUser } from "@auth/core/types";
 import type { Organization } from "@prisma/client";
 
 declare module "@auth/core/types" {
@@ -112,7 +112,7 @@ export const authOptions: SolidAuthConfig = {
                 token.twoFactorEnabled = !!user.twoFactorEnabled;
                 token.provider = account.provider;
 
-                const adminMemberships = await db.organizationMemberships.findMany({
+                const adminMemberships = await db.organizationMembership.findMany({
                     where: { userId: user.id, role: 'ADMIN' },
                     include: { organization: { select: { id: true, name: true } } }
                 });
@@ -143,7 +143,7 @@ export const authOptions: SolidAuthConfig = {
                     token.role = (updateSessionData as any).role;
                 }
                 if ((updateSessionData as any).action === "USER_ORGANIZATION_MEMBERSHIP_UPDATED") {
-                    const adminMemberships = await db.organizationMemberships.findMany({
+                    const adminMemberships = await db.organizationMembership.findMany({
                         where: { userId: token.id as string, role: 'ADMIN' },
                         include: { organization: { select: { id: true, name: true } } }
                     });

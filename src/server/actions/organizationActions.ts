@@ -41,14 +41,14 @@ export const submitOrganizationCreationRequestAction = action(async (formData: F
     const { name, memberCount, pastEventsLinks, legalStatus } = validation.data;
 
     try {
-        const existingRequest = await db.organizationRequests.findFirst({
+        const existingRequest = await db.organizationRequest.findFirst({
             where: { userId: session.user.id, status: 'PENDING' }
         });
         if (existingRequest) {
             return json({ error: "Vous avez déjà une demande de création d'organisation en attente." }, { status: 409 });
         }
 
-        await db.organizationRequests.create({
+        await db.organizationRequest.create({
             data: {
                 userId: session.user.id,
                 name,
@@ -80,18 +80,18 @@ export const approveOrganizationRequestAction = action(async (formData: FormData
     if (!requestId) return json({ error: "ID de demande manquant." }, { status: 400 });
 
     try {
-        const request = await db.organizationRequests.findUnique({ where: { id: requestId } });
+        const request = await db.organizationRequest.findUnique({ where: { id: requestId } });
         if (!request || request.status !== 'PENDING') {
             return json({ error: "Demande non trouvée ou déjà traitée." }, { status: 404 });
         }
 
-        const organization = await db.organizations.create({
+        const organization = await db.organization.create({
             data: {
                 name: request.name,
             },
         });
 
-        await db.organizationMemberships.create({
+        await db.organizationMembership.create({
             data: {
                 organizationId: organization.id,
                 userId: request.userId,
@@ -99,7 +99,7 @@ export const approveOrganizationRequestAction = action(async (formData: FormData
             },
         });
 
-        await db.organizationRequests.update({
+        await db.organizationRequest.update({
             where: { id: requestId },
             data: { status: 'APPROVED' },
         });
@@ -123,7 +123,7 @@ export const rejectOrganizationRequestAction = action(async (formData: FormData)
     if (!requestId) return json({ error: "ID de demande manquant." }, { status: 400 });
 
     try {
-        await db.organizationRequests.update({
+        await db.organizationRequest.update({
             where: { id: requestId },
             data: { status: 'REJECTED' },
         });
@@ -156,7 +156,7 @@ export const addOrganizationMemberAction = action(async (formData: FormData) => 
 
     const { organizationId, email, role } = validation.data;
 
-    const currentUserMembership = await db.organizationMemberships.findUnique({
+    const currentUserMembership = await db.organizationMembership.findUnique({
         where: { organizationId_userId: { organizationId, userId: session?.user?.id || "" } }
     });
 
@@ -168,12 +168,12 @@ export const addOrganizationMemberAction = action(async (formData: FormData) => 
         const userToAdd = await db.user.findUnique({ where: { email } });
         if (!userToAdd) return json({ error: "Utilisateur à ajouter non trouvé." }, { status: 404 });
 
-        const existingMembership = await db.organizationMemberships.findUnique({
+        const existingMembership = await db.organizationMembership.findUnique({
             where: { organizationId_userId: { organizationId, userId: userToAdd.id } }
         });
         if (existingMembership) return json({ error: "Cet utilisateur est déjà membre de l'organisation." }, { status: 409 });
 
-        await db.organizationMemberships.create({
+        await db.organizationMembership.create({
             data: { organizationId, userId: userToAdd.id, role },
         });
         return json({ success: true, message: "Membre ajouté avec succès." }, { status: 201, revalidate: [getAuthSession.key] });
