@@ -1,5 +1,5 @@
 import { Show, For, type VoidComponent, Setter, Accessor, createEffect, onMount, onCleanup } from "solid-js";
-import { createAsync, useSubmission, revalidate } from "@solidjs/router";
+import { createAsync, useSubmission, revalidate, useAction } from "@solidjs/router";
 import { getPendingOrganizationRequests, type OrganizationRequestWithUser } from "~/server/queries/organizationQueries";
 import { approveOrganizationRequestAction, rejectOrganizationRequestAction } from "~/server/actions/organizationActions";
 
@@ -12,6 +12,9 @@ const AdminRequestsModal: VoidComponent<AdminRequestsModalProps> = (props) => {
     const pendingRequests = createAsync(() => getPendingOrganizationRequests(), {
         deferStream: true,
     });
+
+    const execApproveRequest = useAction(approveOrganizationRequestAction);
+    const execRejectRequest = useAction(rejectOrganizationRequestAction);
 
     const approveSubmission = useSubmission(approveOrganizationRequestAction);
     const rejectSubmission = useSubmission(rejectOrganizationRequestAction);
@@ -61,15 +64,11 @@ const AdminRequestsModal: VoidComponent<AdminRequestsModalProps> = (props) => {
     });
 
     const handleApprove = async (requestId: string) => {
-        const formData = new FormData();
-        formData.append("requestId", requestId);
-        await approveOrganizationRequestAction(formData);
+        await execApproveRequest({ requestId });
     };
 
     const handleReject = async (requestId: string) => {
-        const formData = new FormData();
-        formData.append("requestId", requestId);
-        await rejectOrganizationRequestAction(formData);
+        await execRejectRequest({ requestId });
     };
 
     return (
@@ -122,10 +121,12 @@ const AdminRequestsModal: VoidComponent<AdminRequestsModalProps> = (props) => {
                                             Rejeter
                                         </button>
                                     </div>
-                                    <Show when={approveSubmission.pending && approveSubmission.input?.get("requestId") === request.id}>
+                                    {/* Correction ici: utilisez .requestId au lieu de .get() */}
+                                    <Show when={approveSubmission.pending && approveSubmission.input?.requestId === request.id}>
                                         <p class="text-label-small text-primary animate-pulse">Approbation...</p>
                                     </Show>
-                                    <Show when={rejectSubmission.pending && rejectSubmission.input?.get("requestId") === request.id}>
+                                    {/* Correction ici: utilisez .requestId au lieu de .get() */}
+                                    <Show when={rejectSubmission.pending && rejectSubmission.input?.requestId === request.id}>
                                         <p class="text-label-small text-error animate-pulse">Rejet...</p>
                                     </Show>
                                 </li>

@@ -66,7 +66,9 @@ export const submitOrganizationCreationRequestAction = action(async (formData: F
 }, "submitOrganizationCreationRequest");
 
 
-export const approveOrganizationRequestAction = action(async (formData: FormData) => {
+const requestIdSchema = z.object({ requestId: z.string() });
+
+export const approveOrganizationRequestAction = action(async (input: z.infer<typeof requestIdSchema>) => {
     "use server";
     const reqEvent = getRequestEvent();
     if (!reqEvent) return json({ error: "Erreur de contexte serveur" }, { status: 500 });
@@ -76,8 +78,12 @@ export const approveOrganizationRequestAction = action(async (formData: FormData
         return json({ error: "Non autorisé." }, { status: 403 });
     }
 
-    const requestId = formData.get("requestId") as string;
-    if (!requestId) return json({ error: "ID de demande manquant." }, { status: 400 });
+    const validation = requestIdSchema.safeParse(input);
+    if (!validation.success) {
+        return json({ error: "ID de demande manquant." }, { status: 400 });
+    }
+    const { requestId } = validation.data;
+
 
     try {
         const request = await db.organizationRequest.findUnique({ where: { id: requestId } });
@@ -110,7 +116,7 @@ export const approveOrganizationRequestAction = action(async (formData: FormData
     }
 }, "approveOrganizationRequest");
 
-export const rejectOrganizationRequestAction = action(async (formData: FormData) => {
+export const rejectOrganizationRequestAction = action(async (input: z.infer<typeof requestIdSchema>) => {
     "use server";
     const reqEvent = getRequestEvent();
     if (!reqEvent) return json({ error: "Erreur de contexte serveur" }, { status: 500 });
@@ -119,8 +125,12 @@ export const rejectOrganizationRequestAction = action(async (formData: FormData)
     if (session?.user?.role !== "ADMIN") {
         return json({ error: "Non autorisé." }, { status: 403 });
     }
-    const requestId = formData.get("requestId") as string;
-    if (!requestId) return json({ error: "ID de demande manquant." }, { status: 400 });
+
+    const validation = requestIdSchema.safeParse(input);
+    if (!validation.success) {
+        return json({ error: "ID de demande manquant." }, { status: 400 });
+    }
+    const { requestId } = validation.data;
 
     try {
         await db.organizationRequest.update({
@@ -133,6 +143,7 @@ export const rejectOrganizationRequestAction = action(async (formData: FormData)
         return json({ error: "Erreur interne du serveur." }, { status: 500 });
     }
 }, "rejectOrganizationRequest");
+
 
 const addMemberSchema = z.object({
     organizationId: z.string(),
