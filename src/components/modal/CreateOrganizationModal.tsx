@@ -1,6 +1,5 @@
-// src/components/modal/CreateOrganizationModal.tsx
 import { Show, type VoidComponent, Setter, Accessor, createSignal, createEffect } from "solid-js";
-import { submitOrganizationCreationRequestAction } from "~/server/actions/organizationActions"; // Updated action
+import { submitOrganizationCreationRequestAction } from "~/server/actions/organizationActions";
 import { useSubmission } from "@solidjs/router";
 
 interface CreateOrganizationModalProps {
@@ -88,7 +87,6 @@ const CreateOrganizationForm: VoidComponent<{ onSuccess?: () => void, closeModal
                                 </ul>
                             </Show>
                         </p>
-                        {/* ... retry/clear buttons ... */}
                     </div>
                 )}
             </Show>
@@ -108,7 +106,7 @@ const CreateOrganizationModal: VoidComponent<CreateOrganizationModalProps> = (pr
         <Show when={props.isOpen()}>
             <div class="fixed inset-0 z-[60] flex items-center justify-center bg-scrim/50">
                 <div class="bg-surface-container p-6 rounded-lg shadow-mat-level3 w-full max-w-lg m-4 relative">
-                    <button onClick={handleClose} /* ... close button svg ... */ >
+                    <button onClick={handleClose} >
                         <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" /></svg>
                     </button>
                     <CreateOrganizationForm onSuccess={handleSuccess} closeModal={handleClose} />

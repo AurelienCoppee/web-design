@@ -44,21 +44,20 @@ model Session {
 }
 
 model User {
-  id                 String    @id @default(cuid())
-  name               String?
-  email              String?   @unique
-  emailVerified      DateTime? @map("email_verified")
-  hashedPassword     String?
-  twoFactorSecret    String?
-  twoFactorEnabled   Boolean   @default(false)
-  image              String?
-  role               Role      @default(USER) // Site-wide role
+  id               String    @id @default(cuid())
+  name             String?
+  email            String?   @unique
+  emailVerified    DateTime? @map("email_verified")
+  hashedPassword   String?
+  twoFactorSecret  String?
+  twoFactorEnabled Boolean   @default(false)
+  image            String?
+  role             Role      @default(USER)
 
-  accounts                 Account[]
-  sessions                 Session[]
-  organizationRequests     OrganizationRequests[]    @relation("UserRequests")
-  organizationMemberships  OrganizationMemberships[] @relation("UserMemberships")
-  createdOrganizations     Organizations[]           @relation("OrganizationCreator")
+  accounts                Account[]
+  sessions                Session[]
+  organizationMemberships OrganizationMemberships[] @relation("UserMemberships")
+  organizationRequests    OrganizationRequests[]    @relation("UserRequests")
 
   @@map("users")
 }
@@ -73,51 +72,49 @@ model VerificationToken {
 }
 
 model Event {
-  id             String   @id @default(cuid())
-  title          String
-  description    String
-  date           DateTime
-  address        String
-  city           String
-  region         String
-  lat            Float
-  lng            Float
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  creatorId    String
-  creator      User     @relation("EventOrganizer", fields: [organizerId], references: [id])
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  date        DateTime
+  address     String
+  city        String
+  region      String
+  lat         Float
+  lng         Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   organizationId String?
-  organization   Organizations? @relation("OrganizationEvents", fields: [organizationId], references: [id], onDelete: SetNull) // onDelete: SetNull if event should persist if org is deleted
+  organization   Organizations? @relation("OrganizationEvents", fields: [organizationId], references: [id], onDelete: SetNull) // Reste optionnel, onDelete: SetNull
 
   @@index([organizationId])
 }
 
 model OrganizationRequests {
-  id                String   @id @default(cuid())
-  userId            String
-  name              String
-  memberCount       Int
-  pastEventsLinks   String?
-  legalStatus       String?
-  status            String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id              String        @id @default(cuid())
+  userId          String
+  name            String
+  memberCount     Int
+  pastEventsLinks String?
+  legalStatus     String?
+  status          RequestStatus @default(PENDING)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
-  user              User     @relation("UserRequests", fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation("UserRequests", fields: [userId], references: [id], onDelete: Cascade) // La relation à User est maintenue
+
+  @@index([userId])
 }
 
 model Organizations {
-  id                String   @id @default(cuid())
-  name              String   @unique
-  creatorId         String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String   @unique
+  creatorId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  creator           User     @relation("OrganizationCreator", fields: [creatorId], references: [id], onDelete: Restrict)
-  memberships       OrganizationMemberships[] @relation("OrganizationMembers")
-  events            Event[]                   @relation("OrganizationEvents")
+  memberships OrganizationMemberships[] @relation("OrganizationMembers")
+  events      Event[]                   @relation("OrganizationEvents")
 
   @@map("organizations")
 }
@@ -126,11 +123,11 @@ model OrganizationMemberships {
   id             String   @id @default(cuid())
   organizationId String
   userId         String
-  role           OrgRole  @default(MEMBER) // MEMBER, ADMIN (for the organization)
+  role           OrgRole  @default(MEMBER)
   createdAt      DateTime @default(now())
 
-  organization   Organizations @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User          @relation("UserMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  organization Organizations @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User          @relation("UserMemberships", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, userId])
   @@map("organization_memberships")
@@ -144,4 +141,10 @@ enum Role {
 enum OrgRole {
   MEMBER
   ADMIN
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

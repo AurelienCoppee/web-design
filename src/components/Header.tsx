@@ -225,16 +225,18 @@ const Header: Component = () => {
                                         </li>
                                     </Show>
 
-                                    <li>
-                                        <button
-                                            onClick={openCreateOrganizationModal}
-                                            disabled={!canRequestOrganization()}
-                                            class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                                            title={createOrganizationButtonTitle()}
-                                        >
-                                            Créer une Organisation
-                                        </button>
-                                    </li>
+                                    <Show when={currentUser()?.role !== 'ADMIN'}>
+                                        <li>
+                                            <button
+                                                onClick={openCreateOrganizationModal}
+                                                disabled={!canRequestOrganization()}
+                                                class="w-full text-left block px-3 py-2 hover:bg-surface-variant hover:text-on-surface-variant rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title={createOrganizationButtonTitle()}
+                                            >
+                                                Créer une Organisation
+                                            </button>
+                                        </li>
+                                    </Show>
 
                                     <Show when={currentUser()?.role === 'ADMIN'}>
                                         <li>

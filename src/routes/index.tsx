@@ -45,8 +45,14 @@ const Home: VoidComponent = () => {
   };
 
   const groupedEvents = createMemo(() => {
-    const groups: Record<string, EventWithOrganizer[]> = {};
-    (eventsResource() || []).forEach(event => {
+    const rawEventsData = eventsResource();
+
+    if (eventsResource.loading || !Array.isArray(rawEventsData)) {
+      return [];
+    }
+
+    const groups: Record<string, EventWithDetails[]> = {};
+    rawEventsData.forEach(event => {
       const eventDate = new Date(event.date).toDateString();
       if (!groups[eventDate]) {
         groups[eventDate] = [];
@@ -58,7 +64,7 @@ const Home: VoidComponent = () => {
 
   const canCreateEvent = createMemo(() => {
     const user = sessionData()?.user;
-    return user.role === "ADMIN" || (user.administeredOrganizations && user.administeredOrganizations.length > 0);
+    return user && (user.role === "ADMIN" || (user.administeredOrganizations && user.administeredOrganizations.length > 0));
   });
 
   const handleEventCreated = () => {
