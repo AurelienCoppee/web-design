@@ -121,11 +121,9 @@ const AdminRequestsModal: VoidComponent<AdminRequestsModalProps> = (props) => {
                                             Rejeter
                                         </button>
                                     </div>
-                                    {/* Correction ici: utilisez .requestId au lieu de .get() */}
                                     <Show when={approveSubmission.pending && approveSubmission.input?.requestId === request.id}>
                                         <p class="text-label-small text-primary animate-pulse">Approbation...</p>
                                     </Show>
-                                    {/* Correction ici: utilisez .requestId au lieu de .get() */}
                                     <Show when={rejectSubmission.pending && rejectSubmission.input?.requestId === request.id}>
                                         <p class="text-label-small text-error animate-pulse">Rejet...</p>
                                     </Show>

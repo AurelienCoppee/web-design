@@ -88,7 +88,7 @@ const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
                         <Show when={currentEvent.lat && currentEvent.lng}>
                             <div class="mt-4">
                                 <a
-                                    href={`https://www.google.com/maps/search/?api=1&query=${currentEvent.lat},${currentEvent.lng}`}
+                                    href={`https://maps.google.com/?q=${currentEvent.lat},${currentEvent.lng}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     class="inline-flex items-center px-6 py-2.5 border border-transparent text-on-primary bg-primary hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-focus rounded-mat-corner-full font-label-large"

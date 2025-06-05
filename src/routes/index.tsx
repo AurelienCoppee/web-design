@@ -11,7 +11,7 @@ import {
   createResource,
   createEffect
 } from "solid-js";
-import { Meta, Title, Link, Base } from "@solidjs/meta";
+import { Meta, Title, Link } from "@solidjs/meta";
 import { createAsync, useSubmissions, revalidate, useSubmission } from "@solidjs/router";
 import AddEventFAB from "~/components/AddEventFAB";
 const CreateEventModal = lazy(() => import("~/components/modal/CreateEventModal"));
@@ -131,10 +131,6 @@ const Home: VoidComponent = () => {
 
   return (
     <>
-      <Meta charset="utf-8" />
-      <Meta name="viewport" content="width=device-width, initial-scale=1" />
-      <Base href="/" />
-      <Link rel="icon" href="/favicon.ico" />
       <Title>Ralvo</Title>
       <Meta name="description" content="Ralvo est la plateforme dédiée aux événements sportifs en plein air. Découvrez, créez et partagez des activités près de chez vous, en pleine nature." />
       <Meta name="keywords" content="randonnée, vélo, gravel, course, événements, sport, communauté, Ralvo" />
@@ -154,7 +150,7 @@ const Home: VoidComponent = () => {
           {JSON.stringify(eventsResource()!.map(generateEventSchema))}
         </script>
       </Show>
-      <main id="main-content" class="min-h-screen bg-background text-on-background pt-20 pb-10 px-4 md:px-8">
+      <div class="min-h-screen bg-background text-on-background pt-20 pb-10 px-4 sm:px-6 lg:px-8">
         <div class="container mx-auto">
           <h1 class="text-display-medium font-bold tracking-tight text-on-background mb-10 text-center">Événements à Venir</h1>
           <For each={pendingEventSubmissions}>
@@ -173,7 +169,7 @@ const Home: VoidComponent = () => {
             {([date, eventsOnDate]) => (
               <div class="mb-10">
                 <h2 class="text-headline-small text-primary mb-6 border-b-2 border-outline-variant pb-3">{formatDateHeading(eventsOnDate[0].date)}</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   <For each={eventsOnDate}>
                     {(event) => {
                       const [interestCountResource, { refetch: refetchInterestCount }] = createResource(() => event.id, getEventInterestCountForUser);
@@ -214,7 +210,7 @@ const Home: VoidComponent = () => {
           </For>
         </div>
         <Show when={canCreateEvent()}><AddEventFAB onClick={() => setIsCreateEventModalOpen(true)} /></Show>
-      </main>
+      </div>
       <Suspense fallback={<div class="fixed inset-0 bg-scrim/30 flex items-center justify-center text-on-primary-container p-4 rounded-mat-corner-medium">Chargement du modal...</div>}>
         <CreateEventModal isOpen={isCreateEventModalOpen} setIsOpen={setIsCreateEventModalOpen} onEventCreated={handleEventCreated} />
       </Suspense>
