@@ -5,7 +5,7 @@ import { db } from "~/lib/db";
 import { z } from "zod";
 import { getRequestEvent } from "solid-js/web";
 import { getUpcomingEvents } from "~/server/queries/eventQueries";
-import { getUserInterestsForDay, getEventInterestCountForUser } from "~/server/queries/userEventInterestQueries";
+import { getUserInterestsForDay, getEventInterestCountForUser, getMyEventInterests } from "~/server/queries/userEventInterestQueries";
 
 const eventInterestSchema = z.object({
     eventId: z.string().min(1, "Event ID is required."),
@@ -52,7 +52,7 @@ export const markEventInterestAction = action(async (formData: FormData) => {
             });
         });
 
-        return json({ success: true, message: "Interest marked." }, { status: 200, revalidate: [getUpcomingEvents.key, getUserInterestsForDay.keyFor(session.user.id, eventDateOnly.toISOString().split('T')[0]), getEventInterestCountForUser.keyFor(eventId)] });
+        return json({ success: true, message: "Interest marked." }, { status: 200, revalidate: [getUpcomingEvents.key, getMyEventInterests.key, getUserInterestsForDay.keyFor(session.user.id, eventDateOnly.toISOString().split('T')[0]), getEventInterestCountForUser.keyFor(eventId)] });
     } catch (error) {
         console.error("Error marking event interest:", error);
         return json({ error: "Failed to mark interest." }, { status: 500 });
@@ -88,7 +88,7 @@ export const removeEventInterestAction = action(async (formData: FormData) => {
                 eventId: eventId,
             },
         });
-        return json({ success: true, message: "Interest removed." }, { status: 200, revalidate: [getUpcomingEvents.key, getUserInterestsForDay.keyFor(session.user.id, eventDateOnly.toISOString().split('T')[0]), getEventInterestCountForUser.keyFor(eventId)] });
+        return json({ success: true, message: "Interest removed." }, { status: 200, revalidate: [getUpcomingEvents.key, getMyEventInterests.key, getUserInterestsForDay.keyFor(session.user.id, eventDateOnly.toISOString().split('T')[0]), getEventInterestCountForUser.keyFor(eventId)] });
     } catch (error) {
         console.error("Error removing event interest:", error);
         return json({ error: "Failed to remove interest." }, { status: 500 });

@@ -123,7 +123,13 @@ const Home: VoidComponent = () => {
   });
 
   const [myInterests, { refetch: refetchMyInterests }] = createResource(() => sessionData()?.user?.id, (userId) => userId ? getMyEventInterests(userId) : Promise.resolve([]));
-  const isInterestedInEvent = (eventId: string) => myInterests()?.some(interest => interest.eventId === eventId);
+  const isInterestedInEvent = (eventId: string) => {
+    const interests = myInterests();
+    if (!Array.isArray(interests)) {
+      return false;
+    }
+    return interests.some(interest => interest && interest.eventId === eventId);
+  };
   const eventInterestActionSubmission = useSubmission(markEventInterestAction);
   const removeInterestActionSubmission = useSubmission(removeEventInterestAction);
   const isProcessingInterest = (eventId: string) => (eventInterestActionSubmission.pending && eventInterestActionSubmission.input?.get('eventId') === eventId) || (removeInterestActionSubmission.pending && removeInterestActionSubmission.input?.get('eventId') === eventId);
@@ -132,15 +138,12 @@ const Home: VoidComponent = () => {
     if (!sessionData()?.user?.id) return;
     const formData = new FormData();
     formData.append("eventId", event.id);
-    const eventDateStr = new Date(event.date).toISOString().split('T')[0];
-    const interestOnDay = await getUserInterestsForDay(sessionData()!.user!.id, eventDateStr);
+
     if (isInterestedInEvent(event.id)) {
       await removeEventInterestAction(formData);
     } else {
-      if (interestOnDay && interestOnDay.eventId !== event.id) { }
       await markEventInterestAction(formData);
     }
-    refetchMyInterests();
   };
 
   const administeredOrganization = createMemo(() => {
@@ -191,15 +194,8 @@ const Home: VoidComponent = () => {
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   <For each={eventsOnDate}>
                     {(event) => {
-                      const [interestCountResource, { refetch: refetchInterestCount }] = createResource(() => event.id, getEventInterestCountForUser);
-                      createEffect(() => {
-                        if (eventInterestActionSubmission.result || removeInterestActionSubmission.result) {
-                          if (eventInterestActionSubmission.input?.get('eventId') === event.id || removeInterestActionSubmission.input?.get('eventId') === event.id) {
-                            refetchInterestCount();
-                            refetchMyInterests();
-                          }
-                        }
-                      });
+                      const [interestCountResource] = createResource(() => event.id, getEventInterestCountForUser);
+
                       return (
                         <div class="bg-surface-container rounded-mat-corner-extra-large shadow-mat-level2 p-5 flex flex-col justify-between transition-all hover:shadow-mat-level4">
                           <div>

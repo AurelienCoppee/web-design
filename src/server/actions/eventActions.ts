@@ -15,7 +15,7 @@ const createEventSchemaServer = z.object({
     region: z.string().min(2, "La région doit comporter au moins 2 caractères"),
     lat: z.coerce.number().min(-90, "Latitude invalide").max(90, "Latitude invalide"),
     lng: z.coerce.number().min(-180, "Longitude invalide").max(180, "Longitude invalide"),
-    organizationId: z.string().optional(),
+    organizationId: z.string().nullish(),
 });
 
 export const createEventAction = action(async (formData: FormData) => {
@@ -101,7 +101,6 @@ export const createEventAction = action(async (formData: FormData) => {
                 region: validatedData.region,
                 lat: validatedData.lat,
                 lng: validatedData.lng,
-                organizerId: session.user.id,
                 organizationId: validatedData.organizationId || undefined,
             },
         });
