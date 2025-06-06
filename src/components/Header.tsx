@@ -16,7 +16,6 @@ import { getAuthSession } from "~/server/queries/sessionQueries";
 import type { Session } from "@auth/core/types";
 import { leaveOrganizationAction } from "~/server/actions/organizationActions";
 
-
 const LoginSignupModal = lazy(() => import("./modal/LoginSignupModal"));
 const TwoFactorAuthModal = lazy(() => import("./modal/TwoFactorAuthModal"));
 const CreateOrganizationModal = lazy(() => import("./modal/CreateOrganizationModal"));
@@ -38,7 +37,6 @@ const Header: Component = () => {
     const [isAdminRequestsModalOpen, setIsAdminRequestsModalOpen] = createSignal(false);
     const [isManageOrgModalOpen, setIsManageOrgModalOpen] = createSignal(false);
     const [selectedOrgToManage, setSelectedOrgToManage] = createSignal<string | null>(null);
-
 
     const sessionResource = createAsync<Session | null, undefined | { loading: true }>(
         () => getAuthSession(),
@@ -63,7 +61,6 @@ const Header: Component = () => {
             revalidate(getAuthSession.key);
         }
     };
-
 
     const profileImageUrl = createMemo(() => currentUser()?.image);
     const [profileImageError, setProfileImageError] = createSignal(false);
@@ -100,7 +97,6 @@ const Header: Component = () => {
         localStorage.setItem("contrast", contrastLevel());
     });
     createEffect(() => { setProfileImageError(false); });
-
 
     const handleSignOut = async () => {
         await signOut({ redirect: false });
@@ -140,7 +136,6 @@ const Header: Component = () => {
         revalidate(getAuthSession.key);
     };
 
-
     const openCreateOrganizationModal = () => {
         setIsCreateOrganizationModalOpen(true);
         setMenuOpen(false);
@@ -168,7 +163,7 @@ const Header: Component = () => {
     const showCreateOrganizationButton = createMemo(() => {
         const user = currentUser();
         if (!user) return false;
-        if (user.role === 'ADMIN' || (user.administeredOrganizations && user.administeredOrganizations.length > 0)) {
+        if (user.role === 'ADMIN' || !!user.administeredOrganization) {
             return false;
         }
         return true;
@@ -298,24 +293,25 @@ const Header: Component = () => {
                                         </For>
                                     </Show>
 
-                                    <Show when={currentUser()?.administeredOrganizations && currentUser()!.administeredOrganizations!.length > 0}>
-                                        <hr class="border-outline-variant my-1" />
-                                        <li class="px-3 py-2 text-label-medium text-on-surface-variant/70">Mes Organisations (Admin):</li>
-                                        <For each={currentUser()!.administeredOrganizations!}>
-                                            {(org) => (
+                                    <Show when={currentUser()?.administeredOrganization}>
+                                        {(org) => (
+                                            <>
+                                                <hr class="border-outline-variant my-1" />
+                                                <li class="px-3 py-2 text-label-medium text-on-surface-variant/70">Mon Organisation (Admin):</li>
                                                 <li>
                                                     <button
-                                                        onClick={() => openManageOrganizationModal(org.id)}
+                                                        onClick={() => openManageOrganizationModal(org().id)}
                                                         disabled={!canPerformSecureAction()}
-                                                        title={secureActionTitle() || `Gérer ${org.name}`}
+                                                        title={secureActionTitle() || `Gérer ${org().name}`}
                                                         class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
-                                                        Gérer "{org.name}"
+                                                        Gérer "{org().name}"
                                                     </button>
                                                 </li>
-                                            )}
-                                        </For>
+                                            </>
+                                        )}
                                     </Show>
+
                                     <hr class="border-outline-variant my-1" />
                                     <li>
                                         <button onClick={handleSignOut} class="w-full text-left block px-3 py-2 hover:bg-surface-container-high text-on-surface-variant rounded-mat-corner-small font-label-large">Se déconnecter</button>

@@ -9,11 +9,13 @@ import {
 } from "solid-js";
 import { createEventAction } from "~/server/actions/eventActions";
 import { useSubmission } from "@solidjs/router";
+import type { Organization } from "@prisma/client";
 
 interface CreateEventModalProps {
     isOpen: Accessor<boolean>;
     setIsOpen: Setter<boolean>;
     onEventCreated?: () => void;
+    administeredOrganization: Pick<Organization, 'id' | 'name'> | null;
 }
 
 type LocalEventFormData = {
@@ -93,6 +95,13 @@ const CreateEventModal: VoidComponent<CreateEventModalProps> = (props) => {
                     </button>
                     <h2 class="text-headline-small text-on-surface mb-6">Créer un Événement</h2>
                     <form action={createEventAction} method="post" class="space-y-4">
+                        <Show when={props.administeredOrganization}>
+                            <input type="hidden" name="organizationId" value={props.administeredOrganization!.id} />
+                            <p class="text-body-medium text-on-surface-variant">
+                                Création d'un événement pour : <strong class="text-on-surface">{props.administeredOrganization!.name}</strong>
+                            </p>
+                        </Show>
+
                         <div>
                             <label for="title" class="block text-label-large text-on-surface-variant">Titre</label>
                             <input ref={titleInputRef} type="text" name="title" id="title" value={formData().title || ""} onInput={handleInput} required class="mt-1 block w-full rounded-mat-corner-small border-outline bg-surface text-on-surface shadow-sm focus:border-primary py-2 px-3" />

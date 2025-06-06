@@ -95,7 +95,7 @@ const Home: VoidComponent = () => {
 
   const canShowCreateEventFAB = createMemo(() => {
     const user = sessionData()?.user;
-    return user && (user.role === "ADMIN" || (user.administeredOrganizations && user.administeredOrganizations.length > 0));
+    return user && (user.role === "ADMIN" || !!user.administeredOrganization);
   });
 
   const isFabActionDisabled = createMemo(() => {
@@ -142,6 +142,11 @@ const Home: VoidComponent = () => {
     }
     refetchMyInterests();
   };
+
+  const administeredOrganization = createMemo(() => {
+    const user = sessionData()?.user;
+    return user?.administeredOrganization || null;
+  });
 
   return (
     <>
@@ -205,7 +210,7 @@ const Home: VoidComponent = () => {
                               <p class="text-body-medium text-on-surface-variant mb-1.5">{event.city}, {event.region}</p>
                               <p class="text-body-small text-on-surface-variant/80 line-clamp-3">{event.description}</p>
                             </div>
-                            <Show when={sessionData()?.user?.id && event.organizationId && sessionData()?.user?.administeredOrganizations?.some(org => org.id === event.organizationId)}>
+                            <Show when={sessionData()?.user?.id && event.organizationId && sessionData()?.user?.administeredOrganization?.id === event.organizationId}>
                               <p class="text-label-small text-on-surface-variant mt-2.5">Personnes intéressées : {interestCountResource() ?? '0'}</p>
                             </Show>
                           </div>
@@ -232,7 +237,7 @@ const Home: VoidComponent = () => {
         </Show>
       </div>
       <Suspense fallback={<div class="fixed inset-0 bg-scrim/30 flex items-center justify-center text-on-primary-container p-4 rounded-mat-corner-medium">Chargement du modal...</div>}>
-        <CreateEventModal isOpen={isCreateEventModalOpen} setIsOpen={setIsCreateEventModalOpen} onEventCreated={handleEventCreated} />
+        <CreateEventModal isOpen={isCreateEventModalOpen} setIsOpen={setIsCreateEventModalOpen} onEventCreated={handleEventCreated} administeredOrganization={administeredOrganization()} />
       </Suspense>
       <Suspense fallback={<div class="fixed inset-0 bg-scrim/30 flex items-center justify-center text-on-primary-container p-4 rounded-mat-corner-medium">Chargement des détails...</div>}>
         <EventDetailModal isOpen={isEventDetailModalOpen} setIsOpen={setIsEventDetailModalOpen} event={selectedEvent} />

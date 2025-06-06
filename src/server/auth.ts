@@ -16,7 +16,7 @@ declare module "@auth/core/types" {
             twoFactorEnabled: boolean;
             isTwoFactorAuthenticated: boolean;
             provider?: string;
-            administeredOrganizations?: Pick<Organization, 'id' | 'name'>[];
+            administeredOrganization?: Pick<Organization, 'id' | 'name'> | null;
             organizationMemberships?: (Pick<OrganizationMembership, 'role'> & { organization: Pick<Organization, 'id' | 'name'> })[];
         } & Omit<AuthUser, "id">;
     }
@@ -35,7 +35,7 @@ declare module "@auth/core/jwt" {
         twoFactorEnabled?: boolean;
         isTwoFactorAuthenticated?: boolean;
         provider?: string;
-        administeredOrganizations?: Pick<Organization, 'id' | 'name'>[];
+        administeredOrganization?: Pick<Organization, 'id' | 'name'> | null;
         organizationMemberships?: (Pick<OrganizationMembership, 'role'> & { organization: Pick<Organization, 'id' | 'name'> })[];
     }
 }
@@ -120,7 +120,8 @@ export const authOptions: SolidAuthConfig = {
                     select: { role: true, organization: { select: { id: true, name: true } } }
                 });
                 token.organizationMemberships = memberships;
-                token.administeredOrganizations = memberships.filter(m => m.role === 'ADMIN').map(m => m.organization);
+                const adminOf = memberships.find(m => m.role === 'ADMIN');
+                token.administeredOrganization = adminOf ? adminOf.organization : null;
 
 
                 if (account.provider !== "credentials") {
@@ -160,7 +161,8 @@ export const authOptions: SolidAuthConfig = {
                         select: { role: true, organization: { select: { id: true, name: true } } }
                     });
                     token.organizationMemberships = memberships;
-                    token.administeredOrganizations = memberships.filter(m => m.role === 'ADMIN').map(m => m.organization);
+                    const adminOf = memberships.find(m => m.role === 'ADMIN');
+                    token.administeredOrganization = adminOf ? adminOf.organization : null;
                 }
             }
             return token;
@@ -174,7 +176,7 @@ export const authOptions: SolidAuthConfig = {
             if (token.name) session.user.name = token.name;
             if (token.email) session.user.email = token.email;
             if (token.picture) session.user.image = token.picture as string | null | undefined;
-            session.user.administeredOrganizations = token.administeredOrganizations || [];
+            session.user.administeredOrganization = token.administeredOrganization || null;
             session.user.organizationMemberships = token.organizationMemberships || [];
             return session;
         },

@@ -84,11 +84,21 @@ export const approveOrganizationRequestAction = action(async (input: z.infer<typ
     }
     const { requestId } = validation.data;
 
-
     try {
         const request = await db.organizationRequest.findUnique({ where: { id: requestId } });
         if (!request || request.status !== 'PENDING') {
             return json({ error: "Demande non trouvée ou déjà traitée." }, { status: 404 });
+        }
+
+        const existingAdminMembership = await db.organizationMembership.findFirst({
+            where: {
+                userId: request.userId,
+                role: 'ADMIN'
+            }
+        });
+
+        if (existingAdminMembership) {
+            return json({ error: "Cet utilisateur administre déjà une autre organisation. Impossible d'approuver la demande." }, { status: 409 });
         }
 
         const organization = await db.organization.create({
@@ -181,6 +191,18 @@ export const addOrganizationMemberAction = action(async (formData: FormData) => 
 
         if (role === 'ADMIN' && !userToAdd.twoFactorEnabled) {
             return json({ error: "Cet utilisateur doit activer la 2FA avant de pouvoir être ajouté comme administrateur." }, { status: 400 });
+        }
+
+        if (role === 'ADMIN') {
+            const existingAdminMembership = await db.organizationMembership.findFirst({
+                where: {
+                    userId: userToAdd.id,
+                    role: 'ADMIN'
+                }
+            });
+            if (existingAdminMembership) {
+                return json({ error: "Cet utilisateur administre déjà une autre organisation." }, { status: 409 });
+            }
         }
 
         const existingMembership = await db.organizationMembership.findUnique({
