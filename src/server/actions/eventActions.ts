@@ -63,18 +63,17 @@ export const createEventAction = action(async (formData: FormData) => {
         lng: formData.get("lng") as string | null,
         organizationId: organizationId || null,
     };
+
     if (!rawData.date || !rawData.time) {
         return json({ error: "Les champs date et heure du formulaire sont requis." }, { status: 400 });
     }
-    const timeParts = rawData.time.split(':');
-    const formattedTime = `<span class="math-inline">\{timeParts\[0\]\.padStart\(2, '0'\)\}\:</span>{timeParts[1].padStart(2, '0')}`;
-    const dateTimeString = `<span class="math-inline">\{rawData\.date\}T</span>{formattedTime}:00.000Z`;
 
+    const eventDate = new Date(`${rawData.date}T${rawData.time}`);
 
     const eventDataToValidate = {
         title: rawData.title,
         description: rawData.description,
-        date: dateTimeString,
+        date: eventDate,
         address: rawData.address,
         city: rawData.city,
         region: rawData.region,
@@ -95,7 +94,7 @@ export const createEventAction = action(async (formData: FormData) => {
             data: {
                 title: validatedData.title,
                 description: validatedData.description,
-                date: new Date(validatedData.date),
+                date: validatedData.date,
                 address: validatedData.address,
                 city: validatedData.city,
                 region: validatedData.region,
