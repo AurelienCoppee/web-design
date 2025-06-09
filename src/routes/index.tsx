@@ -8,8 +8,7 @@ import {
   Suspense,
   onMount,
   onCleanup,
-  createResource,
-  createEffect
+  createResource
 } from "solid-js";
 import { Meta, Title, Link } from "@solidjs/meta";
 import { createAsync, useSubmissions, revalidate, useSubmission, useAction } from "@solidjs/router";
@@ -20,7 +19,7 @@ import { getUpcomingEvents, type EventWithDetails } from "~/server/queries/event
 import { getAuthSession } from "~/server/queries/sessionQueries";
 import { createEventAction } from "~/server/actions/eventActions";
 import { markEventInterestAction, removeEventInterestAction } from "~/server/actions/userEventInterestActions";
-import { getMyEventInterests, getUserInterestsForDay, getEventInterestCountForUser } from "~/server/queries/userEventInterestQueries";
+import { getMyEventInterests, getEventInterestCountForUser } from "~/server/queries/userEventInterestQueries";
 
 const generateEventSchema = (event: EventWithDetails) => ({
   "@context": "https://schema.org",
@@ -125,7 +124,11 @@ const Home: VoidComponent = () => {
     onCleanup(() => clearInterval(intervalId));
   });
 
-  const [myInterests, { refetch: refetchMyInterests }] = createResource(() => sessionData()?.user?.id, (userId) => userId ? getMyEventInterests(userId) : Promise.resolve([]));
+  const [myInterests, { mutate: setMyInterests, refetch: refetchMyInterests }] = createResource(
+    () => sessionData()?.user?.id,
+    (userId) => (userId ? getMyEventInterests(userId) : Promise.resolve([]))
+  );
+
   const isInterestedInEvent = (eventId: string) => {
     const interests = myInterests();
     if (!Array.isArray(interests)) {
@@ -138,16 +141,49 @@ const Home: VoidComponent = () => {
   const isProcessingInterest = (eventId: string) => (eventInterestActionSubmission.pending && (eventInterestActionSubmission.input?.[0] as FormData)?.get('eventId') === eventId) || (removeInterestActionSubmission.pending && (removeInterestActionSubmission.input?.[0] as FormData)?.get('eventId') === eventId);
 
   const handleInterestToggle = async (event: EventWithDetails) => {
-    if (!sessionData()?.user?.id) return;
-    const formData = new FormData();
-    formData.append("eventId", event.id);
+    const userId = sessionData()?.user?.id;
+    if (!userId) return;
 
-    if (isInterestedInEvent(event.id)) {
-      await execRemoveInterest(formData);
+    const wasInterested = isInterestedInEvent(event.id);
+
+    if (wasInterested) {
+      setMyInterests((prev) => (prev || []).filter((i) => i.eventId !== event.id));
     } else {
-      await execMarkInterest(formData);
+      const optimisticInterest = {
+        userId,
+        eventId: event.id,
+        eventDate: event.date,
+        event: { id: event.id, title: event.title, date: event.date },
+      };
+      setMyInterests((prev) => [...(prev || []), optimisticInterest]);
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("eventId", event.id);
+
+      if (wasInterested) {
+        await execRemoveInterest(formData);
+      } else {
+        await execMarkInterest(formData);
+      }
+    } catch (error) {
+      console.error("Échec de la mise à jour de l'intérêt:", error);
+      if (wasInterested) {
+        const optimisticInterest = {
+          userId,
+          eventId: event.id,
+          eventDate: event.date,
+          event: { id: event.id, title: event.title, date: event.date },
+        };
+        setMyInterests((prev) => [...(prev || []), optimisticInterest]);
+      } else {
+        setMyInterests((prev) => (prev || []).filter((i) => i.eventId !== event.id));
+      }
+      alert("Une erreur est survenue. Veuillez réessayer.");
     }
   };
+
 
   const administeredOrganization = createMemo(() => {
     const user = sessionData()?.user;
@@ -209,9 +245,6 @@ const Home: VoidComponent = () => {
                               <p class="text-body-medium text-on-surface-variant mb-1.5">{event.city}, {event.region}</p>
                               <p class="text-body-small text-on-surface-variant/80 line-clamp-3">{event.description}</p>
                             </div>
-                            <Show when={sessionData()?.user?.id && event.organizationId && sessionData()?.user?.administeredOrganization?.id === event.organizationId}>
-                              <p class="text-label-small text-on-surface-variant mt-2.5">Personnes intéressées : {interestCountResource() ?? '0'}</p>
-                            </Show>
                           </div>
                           <Show when={sessionData()?.user}>
                             <button onClick={() => handleInterestToggle(event)} disabled={isProcessingInterest(event.id)} class={`mt-4 w-full py-2.5 px-4 rounded-mat-corner-full font-label-large transition-colors ${isInterestedInEvent(event.id) ? 'bg-secondary-container text-on-secondary-container hover:bg-secondary-container/80' : 'bg-primary text-on-primary hover:brightness-110'} disabled:opacity-60 disabled:cursor-not-allowed`}>

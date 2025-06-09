@@ -85,3 +85,51 @@ export const getUserInterestsForDay = query(
             return null;
         }
     }, "userInterestsForDay");
+
+export const getInterestedCoMembersForEvent = query(
+    async (eventId: string, currentUserId: string): Promise<InterestedUserForEvent[]> => {
+        "use server";
+        if (!eventId || !currentUserId) return [];
+
+        try {
+            const userOrgs = await db.organizationMembership.findMany({
+                where: { userId: currentUserId },
+                select: { organizationId: true }
+            });
+
+            if (userOrgs.length === 0) {
+                return [];
+            }
+            const orgIds = userOrgs.map(org => org.organizationId);
+
+            const coMembersInterests = await db.userEventInterest.findMany({
+                where: {
+                    eventId: eventId,
+                    userId: {
+                        not: currentUserId
+                    },
+                    user: {
+                        organizationMemberships: {
+                            some: {
+                                organizationId: {
+                                    in: orgIds
+                                }
+                            }
+                        }
+                    }
+                },
+                include: {
+                    user: {
+                        select: { id: true, name: true, email: true }
+                    }
+                }
+            });
+
+            return coMembersInterests.map(interest => interest.user);
+
+        } catch (error) {
+            console.error("Error fetching interested co-members for event:", error);
+            throw new Error("Failed to fetch interested co-members");
+        }
+    }, "interestedCoMembersForEvent"
+);

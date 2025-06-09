@@ -1,7 +1,11 @@
 import { Show, type VoidComponent, Setter, Accessor, For, createResource, createMemo } from "solid-js";
 import { createAsync } from "@solidjs/router";
 import { getAuthSession } from "~/server/queries/sessionQueries";
-import { getInterestedOrgMembersForEvent, getEventInterestCountForUser, type InterestedUserForEvent } from "~/server/queries/userEventInterestQueries";
+import {
+    getInterestedCoMembersForEvent,
+    getEventInterestCountForUser,
+    type InterestedUserForEvent
+} from "~/server/queries/userEventInterestQueries";
 import type { EventWithDetails } from "~/server/queries/eventQueries";
 
 
@@ -14,38 +18,28 @@ interface EventDetailModalProps {
 const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
     const sessionData = createAsync(() => getAuthSession());
 
-    const [interestCount, { refetch: refetchCount }] = createResource(
+    const [interestCount] = createResource(
         () => props.event()?.id,
         (eventId) => eventId ? getEventInterestCountForUser(eventId) : Promise.resolve(0)
     );
 
-    const currentUserOrgIds = createMemo(() => {
-        const user = sessionData()?.user;
-        if (!user || !user.organizationMemberships) return [];
-        return user.organizationMemberships.map((mem: any) => mem.organizationId);
-    });
-
-
-    const [interestedOrgMembers, { refetch: refetchOrgMembers }] = createResource(
-        () => {
-            const ev = props.event();
-            const user = sessionData()?.user;
-            if (!ev?.organizationId || !user?.id) return null;
-            const userIsMemberOfEventOrg = user.organizationMemberships?.some((m: any) => m.organizationId === ev.organizationId);
-            if (!userIsMemberOfEventOrg) return null;
-
-            return { eventId: ev.id, organizationId: ev.organizationId };
-        },
-        (params) => params ? getInterestedOrgMembersForEvent(params.eventId, params.organizationId) : Promise.resolve([])
+    const [interestedCoMembers] = createResource(
+        () => ({ eventId: props.event()?.id, userId: sessionData()?.user?.id }),
+        (params) => {
+            if (!params.eventId || !params.userId) return Promise.resolve([]);
+            return getInterestedCoMembersForEvent(params.eventId, params.userId);
+        }
     );
 
     const isCurrentUserAdminOfEventOrg = createMemo(() => {
-        const ev = props.event();
-        const user = sessionData()?.user;
-        if (!ev?.organizationId || !user?.id || !user.administeredOrganizations) return false;
-        return user.administeredOrganizations.some(org => org.id === ev.organizationId);
-    });
+        const eventOrgId = props.event()?.organizationId;
+        const userMemberships = sessionData()?.user?.organizationMemberships;
+        if (!eventOrgId || !userMemberships) return false;
 
+        return userMemberships.some(
+            (m: any) => m.organization.id === eventOrgId && m.role === 'ADMIN'
+        );
+    });
 
     const handleClose = () => {
         props.setIsOpen(false);
@@ -73,7 +67,7 @@ const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
                         </button>
                         <h2 class="text-headline-medium text-on-surface mb-2">{currentEvent.title}</h2>
                         <p class="text-body-small text-on-surface-variant mb-4">
-                            Organisé par : {currentEvent.organization?.name || currentEvent.organizer?.name || currentEvent.organizer?.email || 'N/A'}
+                            Organisé par : {currentEvent.organization?.name || 'N/A'}
                         </p>
 
                         <div class="space-y-3 text-body-medium text-on-surface-variant">
@@ -88,7 +82,7 @@ const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
                         <Show when={currentEvent.lat && currentEvent.lng}>
                             <div class="mt-4">
                                 <a
-                                    href={`https://maps.google.com/?q=${currentEvent.lat},${currentEvent.lng}`}
+                                    href={`https://www.google.com/maps/search/?api=1&query=${currentEvent.lat},${currentEvent.lng}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     class="inline-flex items-center px-6 py-2.5 border border-transparent text-on-primary bg-primary hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-focus rounded-mat-corner-full font-label-large"
@@ -103,18 +97,17 @@ const EventDetailModal: VoidComponent<EventDetailModalProps> = (props) => {
 
                         <Show when={isCurrentUserAdminOfEventOrg()}>
                             <div class="mt-4 pt-4 border-t border-outline-variant">
-                                <h4 class="text-title-small font-semibold text-on-surface mb-1">Intérêt (Organisateur)</h4>
                                 <p class="text-body-medium text-on-surface-variant">
-                                    Nombre de personnes intéressées : {interestCount.loading ? 'Chargement...' : interestCount() ?? 0}
+                                    Nombre total de personnes intéressées : {interestCount.loading ? 'Chargement...' : interestCount() ?? 0}
                                 </p>
                             </div>
                         </Show>
 
-                        <Show when={interestedOrgMembers() && interestedOrgMembers()!.length > 0 && !isCurrentUserAdminOfEventOrg() && currentEvent.organizationId && currentUserOrgIds().includes(currentEvent.organizationId)}>
+                        <Show when={sessionData()?.user && interestedCoMembers() && interestedCoMembers()!.length > 0}>
                             <div class="mt-4 pt-4 border-t border-outline-variant">
-                                <h4 class="text-title-small font-semibold text-on-surface mb-1">Membres de votre organisation intéressés :</h4>
-                                <ul class="list-disc list-inside text-body-medium text-on-surface-variant">
-                                    <For each={interestedOrgMembers()}>
+                                <h4 class="text-title-medium font-semibold text-on-surface mb-2">Membres de vos organisations intéressés :</h4>
+                                <ul class="list-disc list-inside text-body-medium text-on-surface-variant space-y-1">
+                                    <For each={interestedCoMembers()}>
                                         {(member: InterestedUserForEvent) => (
                                             <li>{member.name || member.email}</li>
                                         )}
