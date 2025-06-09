@@ -12,7 +12,7 @@ import {
   createEffect
 } from "solid-js";
 import { Meta, Title, Link } from "@solidjs/meta";
-import { createAsync, useSubmissions, revalidate, useSubmission } from "@solidjs/router";
+import { createAsync, useSubmissions, revalidate, useSubmission, useAction } from "@solidjs/router";
 import AddEventFAB from "~/components/AddEventFAB";
 const CreateEventModal = lazy(() => import("~/components/modal/CreateEventModal"));
 const EventDetailModal = lazy(() => import("~/components/modal/EventDetailModal"));
@@ -59,6 +59,9 @@ const Home: VoidComponent = () => {
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = createSignal(false);
   const [isEventDetailModalOpen, setIsEventDetailModalOpen] = createSignal(false);
   const [selectedEvent, setSelectedEvent] = createSignal<EventWithDetails | null>(null);
+
+  const execMarkInterest = useAction(markEventInterestAction);
+  const execRemoveInterest = useAction(removeEventInterestAction);
 
   const openEventDetails = (event: EventWithDetails) => {
     setSelectedEvent(event);
@@ -132,7 +135,7 @@ const Home: VoidComponent = () => {
   };
   const eventInterestActionSubmission = useSubmission(markEventInterestAction);
   const removeInterestActionSubmission = useSubmission(removeEventInterestAction);
-  const isProcessingInterest = (eventId: string) => (eventInterestActionSubmission.pending && eventInterestActionSubmission.input?.get('eventId') === eventId) || (removeInterestActionSubmission.pending && removeInterestActionSubmission.input?.get('eventId') === eventId);
+  const isProcessingInterest = (eventId: string) => (eventInterestActionSubmission.pending && (eventInterestActionSubmission.input?.[0] as FormData)?.get('eventId') === eventId) || (removeInterestActionSubmission.pending && (removeInterestActionSubmission.input?.[0] as FormData)?.get('eventId') === eventId);
 
   const handleInterestToggle = async (event: EventWithDetails) => {
     if (!sessionData()?.user?.id) return;
@@ -140,9 +143,9 @@ const Home: VoidComponent = () => {
     formData.append("eventId", event.id);
 
     if (isInterestedInEvent(event.id)) {
-      await removeEventInterestAction(formData);
+      await execRemoveInterest(formData);
     } else {
-      await markEventInterestAction(formData);
+      await execMarkInterest(formData);
     }
   };
 
