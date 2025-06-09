@@ -20,7 +20,9 @@ export default function App() {
               Aller au contenu principal
             </a>
             <Header />
-            <Suspense>{props.children}</Suspense>
+            <main id="main-content">
+              <Suspense>{props.children}</Suspense>
+            </main>
           </>
         )}
       >

@@ -142,12 +142,9 @@ model UserEventInterest {
   eventId   String
   eventDate DateTime
 
-  user  User  @relation("UserInterests", fields: [userId], references: [id], onDelete: Cascade)
-  event Event @relation("EventInterests", fields: [eventId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, eventDate], name: "UserEventInterest_userId_eventDate_key")
-  @@index([eventId])
-  @@index([userId])
+  user      User     @relation("UserInterests", fields: [userId], references: [id], onDelete: Cascade)
+  event     Event    @relation("EventInterests", fields: [eventId], references: [id], onDelete: Cascade)
+  @@unique([userId, eventId])
 }
 
 enum Role {
